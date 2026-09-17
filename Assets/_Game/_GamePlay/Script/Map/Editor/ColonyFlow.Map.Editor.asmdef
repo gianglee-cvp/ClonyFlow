@@ -1,0 +1,5 @@
+{
+  "name": "ColonyFlow.Map.Editor",
+  "references": ["ColonyFlow.Map"],
+  "includePlatforms": ["Editor"]
+}
