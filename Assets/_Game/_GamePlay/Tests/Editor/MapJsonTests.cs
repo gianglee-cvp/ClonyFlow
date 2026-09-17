@@ -63,6 +63,21 @@ public class MapJsonTests
             view.Configure(prefab, cameraObject.GetComponent<Camera>(), owner.transform);
             view.LoadJson(ValidJson);
             Assert.AreEqual(3, view.SpawnedCellCount);
+            var cellViews = owner.GetComponentsInChildren<CellView>();
+            Assert.AreEqual(3, cellViews.Length);
+            var sharedMaterial = prefab.GetComponent<Renderer>().sharedMaterial;
+            var colorProperty = sharedMaterial.HasProperty("_BaseColor") ? "_BaseColor" : "_Color";
+            var sharedColor = sharedMaterial.GetColor(colorProperty);
+            foreach (var cellView in cellViews)
+            {
+                Assert.AreEqual(cellView.Cell.Position, cellView.transform.position);
+                var renderer = cellView.GetComponent<Renderer>();
+                Assert.AreSame(sharedMaterial, renderer.sharedMaterial);
+                var block = new MaterialPropertyBlock();
+                renderer.GetPropertyBlock(block, 0);
+                Assert.AreEqual(view.Model.GetColor(cellView.Cell.ColorId), block.GetColor(colorProperty));
+            }
+            Assert.AreEqual(sharedColor, sharedMaterial.GetColor(colorProperty));
             Assert.AreEqual(new Vector3(0, 12, -6), cameraObject.transform.position);
             Assert.AreEqual(Quaternion.Euler(60, 0, 0), cameraObject.transform.rotation);
             var previousMap = view.Model;

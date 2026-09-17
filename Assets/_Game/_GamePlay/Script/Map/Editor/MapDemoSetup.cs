@@ -55,7 +55,7 @@ namespace ColonyFlow.Gameplay.Editor
             }
 
             if (File.Exists(ScenePath)) return; // Do not overwrite an edited demo scene.
-            var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
+            var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
             SceneManager.SetActiveScene(scene);
             var cameraObject = new GameObject("Map Camera", typeof(Camera), typeof(AudioListener));
             cameraObject.tag = "MainCamera";
