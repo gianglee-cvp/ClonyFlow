@@ -6,7 +6,7 @@ namespace ColonyFlow.Gameplay
     {
         public int Row { get; }
         public int Column { get; }
-        public int ColorId { get; }
+        public int ColorId { get; internal set; }
         public Vector3 Position { get; }
         public bool IsEmpty => ColorId == 0;
 

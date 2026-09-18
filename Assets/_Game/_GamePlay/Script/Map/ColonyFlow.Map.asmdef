@@ -1,4 +1,5 @@
 {
   "name": "ColonyFlow.Map",
-  "rootNamespace": "ColonyFlow.Gameplay"
+  "rootNamespace": "ColonyFlow.Gameplay",
+  "references": ["Unity.ugui"]
 }

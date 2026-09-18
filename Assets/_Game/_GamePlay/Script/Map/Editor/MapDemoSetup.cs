@@ -73,6 +73,7 @@ namespace ColonyFlow.Gameplay.Editor
             owner.AddComponent<MapView>().Configure(prefab, camera, owner.transform, json);
             EditorSceneManager.SaveScene(scene, ScenePath);
             AssetDatabase.SaveAssets();
+            FixedLayoutSetup.Apply();
             Debug.Log("Map demo created: " + ScenePath + ". Enter Play Mode to spawn the JSON map.");
         }
     }

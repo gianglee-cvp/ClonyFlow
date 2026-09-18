@@ -12,7 +12,7 @@ namespace ColonyFlow.Gameplay
         public int Rows { get; }
         public int Columns { get; }
         public int CellCount => Rows * Columns;
-        public int ColoredCellCount { get; }
+        public int ColoredCellCount { get; private set; }
         public Vector3 CameraPosition { get; }
         public Vector3 CameraRotation { get; }
 
@@ -45,6 +45,15 @@ namespace ColonyFlow.Gameplay
             if (row < 0 || row >= Rows) throw new ArgumentOutOfRangeException(nameof(row));
             if (column < 0 || column >= Columns) throw new ArgumentOutOfRangeException(nameof(column));
             return cells[row, column];
+        }
+
+        public bool TryCollect(Cell cell)
+        {
+            if (cell == null || cell.IsEmpty || cell.Row < 0 || cell.Row >= Rows ||
+                cell.Column < 0 || cell.Column >= Columns || cells[cell.Row, cell.Column] != cell) return false;
+            cell.ColorId = 0;
+            ColoredCellCount--;
+            return true;
         }
 
         public Color GetColor(int colorId) => palette[colorId];

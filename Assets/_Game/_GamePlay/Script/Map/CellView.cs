@@ -41,11 +41,16 @@ namespace ColonyFlow.Gameplay
 
         private static int GetColorProperty(Material material)
         {
-            if (material != null && material.HasProperty("_BaseColor"))
+            if (material == null)
+                throw new InvalidOperationException("Cell Renderer has a missing material.");
+            if (material.HasProperty("_BaseColor"))
                 return Shader.PropertyToID("_BaseColor");
-            if (material != null && material.HasProperty("_Color"))
+            if (material.HasProperty("_Color"))
                 return Shader.PropertyToID("_Color");
-            throw new InvalidOperationException("Cell material needs a _BaseColor or _Color shader property.");
+            var shaderName = material.shader != null ? material.shader.name : "Missing shader";
+            throw new InvalidOperationException(
+                $"Cell material '{material.name}' (shader '{shaderName}') needs a _BaseColor or _Color shader property. " +
+                "Check that its shader and required render pipeline package are installed.");
         }
     }
 }

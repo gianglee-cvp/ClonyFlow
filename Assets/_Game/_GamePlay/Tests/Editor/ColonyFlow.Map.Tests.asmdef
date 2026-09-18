@@ -1,6 +1,0 @@
-{
-  "name": "ColonyFlow.Map.Tests",
-  "references": ["ColonyFlow.Map"],
-  "includePlatforms": ["Editor"],
-  "optionalUnityReferences": ["TestAssemblies"]
-}
