@@ -77,6 +77,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f7a61779320004744a4c807d8b98e6fd, type: 3}
   m_Name: 
   m_EditorClassIdentifier: ColonyFlow.Map::ColonyFlow.Gameplay.CellView
+  renderers:
+  - {fileID: 2218995788273538149}
 --- !u!1 &4668398806046977052
 GameObject:
   m_ObjectHideFlags: 0

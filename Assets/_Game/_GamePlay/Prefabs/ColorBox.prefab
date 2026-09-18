@@ -325,6 +325,14 @@ MonoBehaviour:
   m_EditorClassIdentifier: ColonyFlow.Map::ColonyFlow.Gameplay.BoxActor
   countLabel: {fileID: 2304370563410273971}
   face: {fileID: 7299716379786275200}
+  countCanvas: {fileID: 8283330912018478244}
+  hitCollider: {fileID: 944637125709942796}
+  bodyRenderers:
+  - {fileID: 985562708509373744}
+  - {fileID: 7299716379786275200}
+  slotJumpDuration: 0.35
+  slotJumpHeight: 1.4
+  queueMoveDuration: 0.25
 --- !u!65 &944637125709942796
 BoxCollider:
   m_ObjectHideFlags: 0

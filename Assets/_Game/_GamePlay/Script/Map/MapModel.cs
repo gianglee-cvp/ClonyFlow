@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -17,14 +16,15 @@ namespace ColonyFlow.Gameplay
         public Vector3 CameraRotation { get; }
         public Vector3 CellScale { get; private set; }
         public Vector2 CellSpacing { get; private set; }
+        public IReadOnlyList<BoxQueueData> Queues { get; }
 
-        public void LayoutToCard(Bounds cardBounds, float padding, float heightMultiplier = 1, float topReserve = 0)
+        public bool LayoutToCard(Bounds cardBounds, float padding, float heightMultiplier = 1, float topReserve = 0)
         {
             float availableWidth = cardBounds.size.x - padding * 2;
-            if (availableWidth <= 0) throw new InvalidOperationException("Card width must exceed map padding.");
+            if (availableWidth <= 0) return false;
             float cellWidth = Mathf.Min(availableWidth / Columns,
                 (cardBounds.size.z - padding * 2 - topReserve) / Rows);
-            if (cellWidth <= 0) throw new InvalidOperationException("Card height is too small for the map.");
+            if (cellWidth <= 0) return false;
             float thicknessRatio = CellScale.y / CellScale.x * heightMultiplier;
             CellSpacing = Vector2.one * cellWidth;
             CellScale = new Vector3(cellWidth, cellWidth * thicknessRatio, cellWidth);
@@ -33,12 +33,14 @@ namespace ColonyFlow.Gameplay
             foreach (var cell in EnumerateCells())
                 cell.Position = new Vector3(firstX + cell.Column * cellWidth, 0,
                     firstZ - cell.Row * cellWidth);
+            return true;
         }
 
         internal MapModel(MapJsonData data, Dictionary<int, Color> colors)
         {
             Rows = data.rows;
             Columns = data.columns;
+            Queues = data.queues;
             CameraPosition = data.cameraPosition.ToVector3();
             CameraRotation = data.cameraRotation.ToVector3();
             CellSpacing = new Vector2(data.cellSpacing.x, data.cellSpacing.z);
@@ -64,8 +66,7 @@ namespace ColonyFlow.Gameplay
 
         public Cell GetCell(int row, int column)
         {
-            if (row < 0 || row >= Rows) throw new ArgumentOutOfRangeException(nameof(row));
-            if (column < 0 || column >= Columns) throw new ArgumentOutOfRangeException(nameof(column));
+            if (row < 0 || row >= Rows || column < 0 || column >= Columns) return null;
             return cells[row, column];
         }
 

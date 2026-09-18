@@ -39,31 +39,55 @@
       "boxes": [
         {
           "colorId": 1,
-          "antCount": 30
-        },
-        {
-          "colorId": 1,
-          "antCount": 30
-        },
-        {
-          "colorId": 1,
-          "antCount": 30
-        },
-        {
-          "colorId": 1,
-          "antCount": 30
-        },
-        {
-          "colorId": 1,
-          "antCount": 30
-        },
-        {
-          "colorId": 1,
-          "antCount": 29
+          "antCount": 15
         },
         {
           "colorId": 1,
           "antCount": 15
+        },
+        {
+          "colorId": 1,
+          "antCount": 15
+        },
+        {
+          "colorId": 1,
+          "antCount": 15
+        },
+        {
+          "colorId": 1,
+          "antCount": 15
+        },
+        {
+          "colorId": 1,
+          "antCount": 15
+        },
+        {
+          "colorId": 1,
+          "antCount": 15
+        },
+        {
+          "colorId": 1,
+          "antCount": 15
+        },
+        {
+          "colorId": 1,
+          "antCount": 15
+        },
+        {
+          "colorId": 1,
+          "antCount": 15
+        },
+        {
+          "colorId": 1,
+          "antCount": 15
+        },
+        {
+          "colorId": 1,
+          "antCount": 15
+        },
+        {
+          "colorId": 1,
+          "antCount": 14
         }
       ]
     },

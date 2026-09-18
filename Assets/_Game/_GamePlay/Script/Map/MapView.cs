@@ -1,4 +1,3 @@
-using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -7,7 +6,7 @@ namespace ColonyFlow.Gameplay
     public sealed class MapView : MonoBehaviour
     {
         [SerializeField] private TextAsset mapJson;
-        [SerializeField] private GameObject cellPrefab;
+        [SerializeField] private CellView cellPrefab;
         [SerializeField] private Camera mapCamera;
         [SerializeField] private Transform mapRoot;
         [SerializeField] private Renderer mapCardSurface;
@@ -15,26 +14,13 @@ namespace ColonyFlow.Gameplay
         [SerializeField, Min(1)] private float cellHeightMultiplier = 2;
         [SerializeField, Min(0)] private float cellGroundClearance = .2f;
         [SerializeField] private bool loadOnStart = true;
-        [SerializeField] private bool enforceDemoBounds;
         private readonly Dictionary<Cell, CellView> cellViews = new Dictionary<Cell, CellView>();
         private GameObject spawnedRoot;
         public Transform Root => mapRoot;
-        public float MapPadding => mapPadding;
-        public void ConfigureCellPrefab(GameObject prefab) => cellPrefab = prefab;
-        public void ConfigureCellSurface(Renderer surface) => mapCardSurface = surface;
-        public Vector3 GetCellVisualPosition(Cell cell) =>
-            cellViews.TryGetValue(cell, out var view) ? view.transform.position : mapRoot.TransformPoint(cell.Position);
-        public void SetDemoBounds(bool enabled) => enforceDemoBounds = enabled;
-        public bool Collect(Cell cell)
-        {
-            if (Model == null || !Model.TryCollect(cell)) return false;
-            if (cellViews.TryGetValue(cell, out var view)) view.gameObject.SetActive(false);
-            return true;
-        }
         public MapModel Model { get; private set; }
-        public int SpawnedCellCount { get; private set; }
+        public int SpawnedCellCount => cellViews.Count;
 
-        public void Configure(GameObject prefab, Camera camera, Transform root, TextAsset json = null)
+        public void Configure(CellView prefab, Camera camera, Transform root, TextAsset json)
         {
             cellPrefab = prefab;
             mapCamera = camera;
@@ -42,122 +28,93 @@ namespace ColonyFlow.Gameplay
             mapJson = json;
         }
 
+        public void ConfigureCellPrefab(CellView prefab) => cellPrefab = prefab;
+        public void ConfigureCellSurface(Renderer surface) => mapCardSurface = surface;
+
         private void Start()
         {
             if (loadOnStart && Model == null) LoadMap();
         }
 
-        [ContextMenu("Load Map JSON")]
-        public void LoadMap()
+        [ContextMenu("Load Level JSON")]
+        public bool LoadMap() => mapJson != null && LoadJson(mapJson.text);
+
+        public bool LoadJson(string json)
         {
-            try
-            {
-                if (mapJson == null) throw new InvalidOperationException("Assign a map JSON TextAsset.");
-                LoadJson(mapJson.text);
-            }
-            catch (Exception exception)
-            {
-                Debug.LogError("Map load failed: " + exception.Message, this);
-            }
+            if (cellPrefab == null || mapCamera == null || mapRoot == null) return false;
+            var model = MapJsonLoader.Load(json);
+            if (model == null || !FitToCard(model)) return false;
+            Clear();
+            Model = model;
+            CreateMapRoot();
+            SpawnCells();
+            spawnedRoot.SetActive(true);
+            return true;
         }
 
-        public void LoadJson(string json)
+        private bool FitToCard(MapModel model)
         {
-            var nextModel = MapJsonLoader.Load(json);
-            if (cellPrefab == null) throw new InvalidOperationException("Assign a cell prefab.");
-            if (mapCamera == null) throw new InvalidOperationException("Assign a map camera.");
-            if (mapRoot == null) throw new InvalidOperationException("Assign a map root.");
-            if (spawnedRoot != null && (mapRoot.IsChildOf(spawnedRoot.transform) ||
-                mapCamera.transform.IsChildOf(spawnedRoot.transform)))
-                throw new InvalidOperationException("Map root and camera cannot belong to the generated map.");
-            CellView.ValidatePrefab(cellPrefab);
-            if (mapCardSurface == null)
-                mapCardSurface = GameObject.Find("MapCard")?.transform.Find("Surface")?.GetComponent<Renderer>();
-            if (mapCardSurface != null)
-            {
-                var cardBounds = MapPerimeter.CardBounds(mapRoot, mapCardSurface);
-                float maxCellWidth = (cardBounds.size.x - mapPadding * 2) / nextModel.Columns;
-                float maxHeight = maxCellWidth * nextModel.CellScale.y / nextModel.CellScale.x * cellHeightMultiplier;
-                // Reserve screen space for the raised cell tops under the tilted camera.
-                float projectionRatio = Mathf.Abs(Vector3.Dot(mapCamera.transform.up, mapRoot.up) /
-                    Vector3.Dot(mapCamera.transform.up, mapRoot.forward));
-                float topReserve = (cellGroundClearance + maxHeight) * projectionRatio;
-                nextModel.LayoutToCard(cardBounds, mapPadding, cellHeightMultiplier, topReserve);
-                if (enforceDemoBounds && nextModel.Rows * nextModel.CellSpacing.y > cardBounds.size.z - mapPadding * 2 + .001f)
-                    throw new InvalidOperationException("Map height exceeds the card. Apply Fixed Portrait Layout for this JSON.");
-            }
-            // Prepare offscreen; only replace the current map after all cells are ready.
-            var nextRoot = new GameObject("Generated Map");
-            nextRoot.SetActive(false);
-            // JSON positions are local to the fixed map root. Preserve the prefab cell scale.
-            nextRoot.transform.SetParent(mapRoot, false);
-            if (mapCardSurface == null)
-                mapCardSurface = GameObject.Find("MapCard")?.transform.Find("Surface")?.GetComponent<Renderer>();
-            float groundTop = mapCardSurface != null ? mapCardSurface.bounds.max.y : mapRoot.position.y;
-            int count = 0;
-            try
-            {
-                foreach (var cell in nextModel.EnumerateCells())
-                {
-                    if (cell.IsEmpty) continue;
-                    var instance = Instantiate(cellPrefab, nextRoot.transform, false);
-                    instance.transform.localPosition = cell.Position;
-                    instance.transform.localRotation = Quaternion.identity;
-                    instance.transform.localScale = nextModel.CellScale;
-                    // Offset only the visual mesh: grid/navigation positions stay unchanged.
-                    float bottom = float.PositiveInfinity;
-                    foreach (var meshRenderer in instance.GetComponentsInChildren<Renderer>(true))
-                    {
-                        var bounds = meshRenderer.localBounds;
-                        for (int corner = 0; corner < 8; corner++)
-                        {
-                            var point = new Vector3(
-                                (corner & 1) == 0 ? bounds.min.x : bounds.max.x,
-                                (corner & 2) == 0 ? bounds.min.y : bounds.max.y,
-                                (corner & 4) == 0 ? bounds.min.z : bounds.max.z);
-                            bottom = Mathf.Min(bottom, meshRenderer.transform.TransformPoint(point).y);
-                        }
-                    }
-                    instance.transform.position += Vector3.up * (groundTop + cellGroundClearance - bottom);
-                    instance.name = $"Cell [{cell.Row},{cell.Column}] Color {cell.ColorId}";
-                    instance.SetActive(true);
-                    var view = instance.GetComponent<CellView>();
-                    if (view == null) view = instance.AddComponent<CellView>();
-                    view.Initialize(cell, nextModel.GetColor(cell.ColorId));
-                    count++;
-                }
-            }
-            catch
-            {
-                DisposeRoot(nextRoot);
-                throw;
-            }
+            if (mapCardSurface == null) return true;
+            var bounds = MapPerimeter.CardBounds(mapRoot, mapCardSurface);
+            float maxWidth = (bounds.size.x - mapPadding * 2) / model.Columns;
+            float maxHeight = maxWidth * model.CellScale.y / model.CellScale.x * cellHeightMultiplier;
+            float projectionRatio = Mathf.Abs(Vector3.Dot(mapCamera.transform.up, mapRoot.up) /
+                Vector3.Dot(mapCamera.transform.up, mapRoot.forward));
+            float topReserve = (cellGroundClearance + maxHeight) * projectionRatio;
+            return model.LayoutToCard(bounds, mapPadding, cellHeightMultiplier, topReserve);
+        }
 
-            Clear();
-            spawnedRoot = nextRoot;
-            Model = nextModel;
-            SpawnedCellCount = count;
-            foreach (var view in nextRoot.GetComponentsInChildren<CellView>(true))
-                cellViews.Add(view.Cell, view);
-            spawnedRoot.SetActive(true);
+        private void CreateMapRoot()
+        {
+            spawnedRoot = new GameObject("Generated Map");
+            spawnedRoot.SetActive(false);
+            spawnedRoot.transform.SetParent(mapRoot, false);
+        }
+
+        private void SpawnCells()
+        {
+            float groundTop = mapCardSurface != null ? mapCardSurface.bounds.max.y : mapRoot.position.y;
+            foreach (var cell in Model.EnumerateCells())
+                if (!cell.IsEmpty) SpawnCell(cell, groundTop);
+        }
+
+        private void SpawnCell(Cell cell, float groundTop)
+        {
+            var view = Instantiate(cellPrefab, spawnedRoot.transform, false);
+            view.transform.localPosition = cell.Position;
+            view.transform.localRotation = Quaternion.identity;
+            view.transform.localScale = Model.CellScale;
+            view.transform.position += Vector3.up * (groundTop + cellGroundClearance - view.WorldBottom());
+            view.name = $"Cell [{cell.Row},{cell.Column}] Color {cell.ColorId}";
+            view.Initialize(cell, Model.GetColor(cell.ColorId));
+            view.gameObject.SetActive(true);
+            cellViews.Add(cell, view);
+        }
+
+        public Vector3 GetCellVisualPosition(Cell cell) => cellViews[cell].transform.position;
+
+        public bool Collect(Cell cell)
+        {
+            if (Model == null || !Model.TryCollect(cell)) return false;
+            cellViews[cell].gameObject.SetActive(false);
+            return true;
         }
 
         [ContextMenu("Clear Map")]
         public void Clear()
         {
-            if (spawnedRoot != null) DisposeRoot(spawnedRoot);
-            spawnedRoot = null;
+            DisposeRoot();
             cellViews.Clear();
             Model = null;
-            SpawnedCellCount = 0;
         }
 
-        private static void DisposeRoot(GameObject root)
+        private void DisposeRoot()
         {
-            root.SetActive(false);
-            root.transform.SetParent(null, true);
-            if (Application.isPlaying) Destroy(root);
-            else DestroyImmediate(root);
+            if (spawnedRoot == null) return;
+            spawnedRoot.SetActive(false);
+            if (Application.isPlaying) Destroy(spawnedRoot);
+            else DestroyImmediate(spawnedRoot);
+            spawnedRoot = null;
         }
 
         private void OnDestroy() => Clear();

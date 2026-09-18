@@ -1,5 +1,5 @@
 {
   "name": "ColonyFlow.Map",
   "rootNamespace": "ColonyFlow.Gameplay",
-  "references": ["Unity.ugui"]
+  "references": ["Unity.ugui", "ColonyFlow.Core.Tweening"]
 }

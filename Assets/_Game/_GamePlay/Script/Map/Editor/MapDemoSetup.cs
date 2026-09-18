@@ -1,16 +1,13 @@
-using System;
 using System.IO;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 namespace ColonyFlow.Gameplay.Editor
 {
     public static class MapDemoSetup
     {
         private const string ScenePath = "Assets/_Game/_GamePlay/Scenes/MapDemo.unity";
-        private const string PrefabPath = "Assets/_Game/_GamePlay/Prefabs/MapCell.prefab";
         private const string MaterialPath = "Assets/_Game/_GamePlay/Materials/MapCell.mat";
         private const string JsonPath = "Assets/_Game/Data/Maps/star-map.json";
 
@@ -22,50 +19,35 @@ namespace ColonyFlow.Gameplay.Editor
             else CreateDemoAssets();
         }
 
-        // Can also run in batch mode in an isolated verification project.
         public static void CreateDemoAssets()
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(ScenePath));
-            Directory.CreateDirectory(Path.GetDirectoryName(PrefabPath));
-            Directory.CreateDirectory(Path.GetDirectoryName(MaterialPath));
-            AssetDatabase.Refresh();
             var json = AssetDatabase.LoadAssetAtPath<TextAsset>(JsonPath);
-            if (json == null) throw new InvalidOperationException("Demo map JSON is missing: " + JsonPath);
+            if (json == null) return;
             var model = MapJsonLoader.Load(json.text);
+            if (model == null || !PrepareMaterial()) return;
+            var prefab = GameplayDemoSetup.PrepareRoundedCell();
+            if (prefab == null || File.Exists(ScenePath)) return;
+            CreateScene(prefab, json, model);
+            FixedLayoutSetup.Apply();
+        }
 
-            var material = AssetDatabase.LoadAssetAtPath<Material>(MaterialPath);
-            if (material == null)
-            {
-                var shader = Shader.Find("Universal Render Pipeline/Lit");
-                if (shader == null) throw new InvalidOperationException("A Lit shader is required for the demo.");
-                material = new Material(shader) { name = "MapCell" };
-                AssetDatabase.CreateAsset(material, MaterialPath);
-            }
+        private static bool PrepareMaterial()
+        {
+            var shader = Shader.Find("Universal Render Pipeline/Lit");
+            if (shader == null) return false;
+            Directory.CreateDirectory(Path.GetDirectoryName(ScenePath));
+            Directory.CreateDirectory(Path.GetDirectoryName(MaterialPath));
+            Directory.CreateDirectory("Assets/_Game/_GamePlay/Prefabs");
+            if (AssetDatabase.LoadAssetAtPath<Material>(MaterialPath) != null) return true;
+            AssetDatabase.CreateAsset(new Material(shader) { name = "MapCell" }, MaterialPath);
+            return true;
+        }
 
-            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);
-            if (prefab == null)
-            {
-                var cube = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                cube.name = "MapCell";
-                cube.transform.localScale = new Vector3(1, 0.4f, 1);
-                cube.GetComponent<Renderer>().sharedMaterial = material;
-                cube.AddComponent<CellView>();
-                prefab = PrefabUtility.SaveAsPrefabAsset(cube, PrefabPath);
-                UnityEngine.Object.DestroyImmediate(cube);
-            }
-
-            if (File.Exists(ScenePath)) return; // Do not overwrite an edited demo scene.
+        private static void CreateScene(CellView prefab, TextAsset json, MapModel model)
+        {
             var scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-            SceneManager.SetActiveScene(scene);
-            var cameraObject = new GameObject("Map Camera", typeof(Camera), typeof(AudioListener));
-            cameraObject.tag = "MainCamera";
-            var camera = cameraObject.GetComponent<Camera>();
-            camera.clearFlags = CameraClearFlags.SolidColor;
-            camera.backgroundColor = new Color(0.12f, 0.15f, 0.2f);
-            camera.orthographic = true;
-            camera.orthographicSize = 6;
-            camera.transform.SetPositionAndRotation(model.CameraPosition, Quaternion.Euler(model.CameraRotation));
-            var light = new GameObject("Map Light", typeof(Light)).GetComponent<Light>();
+            var camera = CreateCamera(model);
+            var light = new GameObject("Map Light").AddComponent<Light>();
             light.type = LightType.Directional;
             light.intensity = 1.5f;
             light.transform.rotation = Quaternion.Euler(50, -30, 0);
@@ -73,8 +55,20 @@ namespace ColonyFlow.Gameplay.Editor
             owner.AddComponent<MapView>().Configure(prefab, camera, owner.transform, json);
             EditorSceneManager.SaveScene(scene, ScenePath);
             AssetDatabase.SaveAssets();
-            FixedLayoutSetup.Apply();
-            Debug.Log("Map demo created: " + ScenePath + ". Enter Play Mode to spawn the JSON map.");
+        }
+
+        private static Camera CreateCamera(MapModel model)
+        {
+            var owner = new GameObject("Map Camera");
+            owner.tag = "MainCamera";
+            owner.AddComponent<AudioListener>();
+            var camera = owner.AddComponent<Camera>();
+            camera.clearFlags = CameraClearFlags.SolidColor;
+            camera.backgroundColor = new Color(.12f, .15f, .2f);
+            camera.orthographic = true;
+            camera.orthographicSize = 6;
+            camera.transform.SetPositionAndRotation(model.CameraPosition, Quaternion.Euler(model.CameraRotation));
+            return camera;
         }
     }
 }

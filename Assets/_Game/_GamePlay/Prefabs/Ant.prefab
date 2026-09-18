@@ -325,8 +325,11 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: ColonyFlow.Map::ColonyFlow.Gameplay.AntActor
   carriedBrick: {fileID: 418089672556428154}
+  carriedRenderer: {fileID: 1133286655099619326}
   abdomen: {fileID: 5824363375838809270}
   jumpHeight: 0.3
+  jumpDuration: 0.55
+  jumpScaleMultiplier: 1.25
 --- !u!1 &3099851075737517140
 GameObject:
   m_ObjectHideFlags: 0

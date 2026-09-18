@@ -1,8 +1,6 @@
-using System;
 using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
-using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -19,97 +17,115 @@ namespace ColonyFlow.Gameplay.Editor
 
         public static void BuildIntoScene(MapView map, Camera camera)
         {
-            var current = UnityEngine.Object.FindFirstObjectByType<AntGameplay>();
-            var queuesJson = current != null ? (TextAsset)new SerializedObject(current).FindProperty("boxQueuesJson").objectReferenceValue : null;
-            var old = GameObject.Find("GameplayRoot");
-            if (old != null) UnityEngine.Object.DestroyImmediate(old);
-            foreach (string name in new[] { "ReserveSlots", "ColorButtonsArea", "Hole Rim" })
-            {
-                var placeholder = GameObject.Find(name);
-                if (placeholder != null) UnityEngine.Object.DestroyImmediate(placeholder);
-            }
-            Directory.CreateDirectory(BasePath + "Prefabs");
-            Directory.CreateDirectory(BasePath + "Materials");
-            string materialPath = BasePath + "Materials/GameplayUnlit.mat";
-            material = AssetDatabase.LoadAssetAtPath<Material>(materialPath);
-            if (material == null)
-            {
-                var shader = Shader.Find("Universal Render Pipeline/Lit");
-                if (shader == null) throw new InvalidOperationException("URP Lit shader is missing.");
-                material = new Material(shader) { name = "GameplayUnlit" };
-                AssetDatabase.CreateAsset(material, materialPath);
-            }
-            material.shader = Shader.Find("Universal Render Pipeline/Lit");
-            EditorUtility.SetDirty(material);
-            font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-            float screenWidth = 2 * camera.orthographicSize * 1080 / 1920;
-            boxWidth = screenWidth * .13f;
-            boxDepth = (boxWidth - .14f * Mathf.Abs(camera.transform.up.y)) /
-                Mathf.Abs(camera.transform.up.z);
-            queueColumnStep = screenWidth * .155f;
-            queueRowStep = 2 * camera.orthographicSize * .073f / Mathf.Abs(camera.transform.up.z);
-            var box = CreateBoxPrefab();
+            if (!PrepareMaterials()) return;
+            SceneObjects.RemoveRoots("GameplayRoot", "ReserveSlots", "ColorButtonsArea", "Hole Rim",
+                "Map Card Frame", "Map Card Shadow");
+            CalculateBoxLayout(camera);
+            var box = CreateBoxPrefab(camera);
             var ant = CreateAntPrefab();
             var root = new GameObject("GameplayRoot").transform;
-            var slotsRoot = new GameObject("ActiveSlots").transform; slotsRoot.SetParent(root, false);
-            var queueRoot = new GameObject("BoxQueues").transform; queueRoot.SetParent(root, false);
-            var cardRoot = new GameObject("MapCard").transform;
-            cardRoot.SetParent(root, false);
-            var bottomLeft = ScreenWorld(camera, .04f, .515f);
-            var topRight = ScreenWorld(camera, .96f, .885f);
-            cardRoot.localPosition = (bottomLeft + topRight) * .5f + Vector3.down * (.65f * LayoutUnit);
-            var cardSize = new Vector2(topRight.x - bottomLeft.x, topRight.z - bottomLeft.z);
-            float inset = 44 * (2 * camera.orthographicSize / 1920);
-            CreateCardLayer(cardRoot, "Shadow", cardSize, new Vector3(0, -.06f * LayoutUnit, -.7f * LayoutUnit), Hex("#DEAF6E"));
-            CreateCardLayer(cardRoot, "Frame", cardSize, Vector3.zero, Hex("#EBC68B"));
-            var surface = CreateCardLayer(cardRoot, "Surface", cardSize - Vector2.one * inset,
-                new Vector3(0, .04f * LayoutUnit, 0), Hex("#F5E9D5"));
-            var cardBounds = MapPerimeter.CardBounds(map.Root, surface);
-            foreach (string name in new[] { "Map Card Frame", "Map Card Shadow" })
+            var surface = CreateCard(root, camera);
+            var bounds = MapPerimeter.CardBounds(map.Root, surface);
+            CreateSlots(root, camera, bounds, out var anchors, out var spawns, out var entries);
+            var queues = CreateQueueAnchors(root, camera);
+            CreateHole(root, camera, bounds, out var returning, out var jumping, out var exit);
+            var gameplay = root.gameObject.AddComponent<AntGameplay>();
+            gameplay.Configure(map, camera, box, ant, anchors, spawns, entries, queues, returning, jumping, exit);
+            gameplay.ConfigureCard(surface);
+            gameplay.ConfigureLayoutUnit(LayoutUnit);
+            gameplay.ConfigureBoxLayout(queueColumnStep, queueRowStep);
+            map.ConfigureCellSurface(surface);
+        }
+
+        private static bool PrepareMaterials()
+        {
+            Directory.CreateDirectory(BasePath + "Prefabs");
+            Directory.CreateDirectory(BasePath + "Materials");
+            var shader = Shader.Find("Universal Render Pipeline/Lit");
+            if (shader == null) return false;
+            string path = BasePath + "Materials/GameplayUnlit.mat";
+            material = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (material == null)
             {
-                var obsolete = GameObject.Find(name);
-                if (obsolete != null) UnityEngine.Object.DestroyImmediate(obsolete);
+                material = new Material(shader) { name = "GameplayUnlit" };
+                AssetDatabase.CreateAsset(material, path);
             }
-            float holeY = .445f;
-            float slotY = .355f;
-            float queueY = .263f;
-            var slotAnchors = new Transform[4];
-            var spawnPoints = new Transform[4];
-            var entries = new Transform[4];
+            material.shader = shader;
+            EditorUtility.SetDirty(material);
+            font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            return true;
+        }
+
+        private static void CalculateBoxLayout(Camera camera)
+        {
+            float width = 2 * camera.orthographicSize * 1080 / 1920;
+            boxWidth = width * .13f;
+            boxDepth = (boxWidth - .14f * Mathf.Abs(camera.transform.up.y)) / Mathf.Abs(camera.transform.up.z);
+            queueColumnStep = width * .155f;
+            queueRowStep = 2 * camera.orthographicSize * .073f / Mathf.Abs(camera.transform.up.z);
+        }
+
+        private static Renderer CreateCard(Transform parent, Camera camera)
+        {
+            var root = new GameObject("MapCard").transform;
+            root.SetParent(parent, false);
+            var bottom = ScreenWorld(camera, .04f, .515f);
+            var top = ScreenWorld(camera, .96f, .885f);
+            root.localPosition = (bottom + top) * .5f + Vector3.down * (.65f * LayoutUnit);
+            var size = new Vector2(top.x - bottom.x, top.z - bottom.z);
+            float inset = 44 * (2 * camera.orthographicSize / 1920);
+            CreateCardLayer(root, "Shadow", size, new Vector3(0, -.06f * LayoutUnit, -.7f * LayoutUnit), Hex("#DEAF6E"));
+            CreateCardLayer(root, "Frame", size, Vector3.zero, Hex("#EBC68B"));
+            return CreateCardLayer(root, "Surface", size - Vector2.one * inset,
+                new Vector3(0, .04f * LayoutUnit, 0), Hex("#F5E9D5"));
+        }
+
+        private static void CreateSlots(Transform parent, Camera camera, Bounds bounds,
+            out Transform[] anchors, out Transform[] spawns, out Transform[] entries)
+        {
+            var root = new GameObject("ActiveSlots").transform;
+            root.SetParent(parent, false);
+            anchors = new Transform[4];
+            spawns = new Transform[4];
+            entries = new Transform[4];
             for (int i = 0; i < 4; i++)
             {
-                var slot = new GameObject($"Slot {i}").transform; slot.SetParent(slotsRoot, false);
-                var position = ScreenWorld(camera, .5f + (i - 1.5f) * .1525f, slotY);
-
-                slotAnchors[i] = Point(slot, "BoxAnchor", position);
-                spawnPoints[i] = Point(slot, "AntSpawnPoint", position + Vector3.forward * (boxDepth * .5f));
-                entries[i] = Point(slot, "PerimeterEntry", new Vector3(Mathf.Clamp(position.x, cardBounds.min.x, cardBounds.max.x), 0, cardBounds.min.z));
+                var slot = new GameObject($"Slot {i}").transform;
+                slot.SetParent(root, false);
+                var position = ScreenWorld(camera, .5f + (i - 1.5f) * .1525f, .355f);
+                anchors[i] = Point(slot, "BoxAnchor", position);
+                spawns[i] = Point(slot, "AntSpawnPoint", position + Vector3.forward * (boxDepth * .5f));
+                entries[i] = Point(slot, "PerimeterEntry",
+                    new Vector3(Mathf.Clamp(position.x, bounds.min.x, bounds.max.x), 0, bounds.min.z));
                 Primitive(slot, "Empty Slot", PrimitiveType.Cube, position + Vector3.down * (.35f * LayoutUnit),
                     new Vector3(boxWidth, .10f, boxDepth) / LayoutUnit, Hex("#FFF7E7"), false);
             }
-            var queueAnchors = new Transform[3];
-            for (int i = 0; i < 3; i++)
-                queueAnchors[i] = Point(queueRoot, $"Queue {i} Anchor", ScreenWorld(camera, .36f + i * .14f, queueY));
-            var hole = new GameObject("AntHole").transform; hole.SetParent(root, false);
-            var holePosition = ScreenWorld(camera, .5f, holeY);
+        }
 
-            Primitive(hole, "Hole Rim", PrimitiveType.Cylinder, holePosition + Vector3.down * (.25f * LayoutUnit),
-                new Vector3(screenWidth * .12f, .045f, screenWidth * .075f) / LayoutUnit, Hex("#B98243"), false, false);
-            Primitive(hole, "Dark Hole", PrimitiveType.Cylinder, holePosition + Vector3.down * (.1f * LayoutUnit),
-                new Vector3(screenWidth * .105f, .05f, screenWidth * .063f) / LayoutUnit, Hex("#59341C"), false, false);
-            var returning = Point(hole, "ReturnPoint", holePosition);
-            var jumping = Point(hole, "JumpTarget", holePosition + Vector3.down * (2 * LayoutUnit));
-            var exit = Point(root, "HoleExit", new Vector3(0, 0, cardBounds.min.z));
-            if (queuesJson == null) queuesJson = AssetDatabase.LoadAssetAtPath<TextAsset>("Assets/_Game/Data/BoxQueues/demo-box-queues.json");
-            if (queuesJson == null) throw new InvalidOperationException("Assign a Box queue JSON asset.");
-            var gameplay = root.gameObject.AddComponent<AntGameplay>();
-            gameplay.Configure(map, camera, box, ant, slotAnchors, entries, queueAnchors, returning, jumping, exit, null);
-            gameplay.SetAntSpawnPoints(spawnPoints);
-            gameplay.ConfigureCard(surface);
-            map.ConfigureCellSurface(surface);
-            gameplay.ConfigureQueues(queuesJson);
-            gameplay.ConfigureLayoutUnit(LayoutUnit);
-            gameplay.ConfigureBoxLayout(queueColumnStep, queueRowStep, boxDepth * .5f);
+        private static Transform[] CreateQueueAnchors(Transform parent, Camera camera)
+        {
+            var root = new GameObject("BoxQueues").transform;
+            root.SetParent(parent, false);
+            var anchors = new Transform[3];
+            for (int i = 0; i < anchors.Length; i++)
+                anchors[i] = Point(root, $"Queue {i} Anchor", ScreenWorld(camera, .36f + i * .14f, .263f));
+            return anchors;
+        }
+
+        private static void CreateHole(Transform parent, Camera camera, Bounds bounds,
+            out Transform returning, out Transform jumping, out Transform exit)
+        {
+            var root = new GameObject("AntHole").transform;
+            root.SetParent(parent, false);
+            var position = ScreenWorld(camera, .5f, .445f);
+            float width = 2 * camera.orthographicSize * 1080 / 1920;
+            Primitive(root, "Hole Rim", PrimitiveType.Cylinder, position + Vector3.down * (.25f * LayoutUnit),
+                new Vector3(width * .12f, .045f, width * .075f) / LayoutUnit, Hex("#B98243"), false, false);
+            Primitive(root, "Dark Hole", PrimitiveType.Cylinder, position + Vector3.down * (.1f * LayoutUnit),
+                new Vector3(width * .105f, .05f, width * .063f) / LayoutUnit, Hex("#59341C"), false, false);
+            returning = Point(root, "ReturnPoint", position);
+            jumping = Point(root, "JumpTarget", position + Vector3.down * (2 * LayoutUnit));
+            exit = Point(parent, "HoleExit", new Vector3(0, 0, bounds.min.z));
         }
 
         private static Renderer CreateCardLayer(Transform root, string name,
@@ -118,37 +134,59 @@ namespace ColonyFlow.Gameplay.Editor
             return Primitive(root, name, PrimitiveType.Cube, position,
                 new Vector3(size.x / LayoutUnit, .12f, size.y / LayoutUnit), color, false, false).GetComponent<Renderer>();
         }
-        private static BoxActor CreateBoxPrefab()
+        private static BoxActor CreateBoxPrefab(Camera camera)
         {
             var root = new GameObject("ColorBox");
             var actor = root.AddComponent<BoxActor>();
             var border = Primitive(root.transform, "Border", PrimitiveType.Cube, Vector3.zero,
-                new Vector3(boxWidth, .14f, boxDepth) / LayoutUnit, Hex("#FFF5DC"), false);
+                new Vector3(boxWidth, .14f, boxDepth) / LayoutUnit, Hex("#FFF5DC"), false).GetComponent<Renderer>();
             var face = Primitive(root.transform, "Face", PrimitiveType.Cube, new Vector3(0, .115f / LayoutUnit, 0),
-                new Vector3(boxWidth - .10f, .10f, boxDepth - .10f) / LayoutUnit, Color.white, false);
-            var collider = root.AddComponent<BoxCollider>();
-            collider.center = new Vector3(0, .10f, 0); collider.size = new Vector3(boxWidth, .35f, boxDepth);
-            var canvas = new GameObject("Count", typeof(RectTransform), typeof(Canvas));
-            canvas.transform.SetParent(root.transform, false);
-            canvas.GetComponent<Canvas>().renderMode = RenderMode.WorldSpace;
-            var rect = canvas.GetComponent<RectTransform>();
-            rect.sizeDelta = new Vector2(200, 200); rect.localScale = Vector3.one * (boxWidth * .9f / 200);
-            rect.localPosition = new Vector3(0, .23f, 0); rect.localRotation = Quaternion.Euler(45, 0, 0);
-            var label = new GameObject("Label", typeof(RectTransform), typeof(Text)).GetComponent<Text>();
-            label.transform.SetParent(canvas.transform, false);
-            var labelRect = label.GetComponent<RectTransform>();
-            labelRect.anchorMin = Vector2.zero; labelRect.anchorMax = Vector2.one;
-            labelRect.offsetMin = labelRect.offsetMax = Vector2.zero;
-            label.font = font; label.fontSize = 90; label.fontStyle = FontStyle.Bold;
-            label.alignment = TextAnchor.MiddleCenter; label.color = Color.white; label.raycastTarget = false;
-            label.text = "30";
-            var outline = label.gameObject.AddComponent<Outline>();
-            outline.effectColor = Color.black; outline.effectDistance = new Vector2(3, -3);
-            actor.Configure(label, face.GetComponent<Renderer>());
-            actor.AlignCount(Camera.main);
+                new Vector3(boxWidth - .10f, .10f, boxDepth - .10f) / LayoutUnit, Color.white, false).GetComponent<Renderer>();
+            var collider = CreateBoxCollider(root);
+            var label = CreateCountLabel(root.transform, out var canvas);
+            actor.Configure(label, face, canvas, collider, new[] { border, face });
+            actor.AlignCount(camera);
             var prefab = PrefabUtility.SaveAsPrefabAsset(root, BasePath + "Prefabs/ColorBox.prefab");
             UnityEngine.Object.DestroyImmediate(root);
             return prefab.GetComponent<BoxActor>();
+        }
+
+        private static BoxCollider CreateBoxCollider(GameObject root)
+        {
+            var collider = root.AddComponent<BoxCollider>();
+            collider.center = new Vector3(0, .10f, 0);
+            collider.size = new Vector3(boxWidth, .35f, boxDepth);
+            return collider;
+        }
+
+        private static Text CreateCountLabel(Transform parent, out RectTransform rect)
+        {
+            var owner = new GameObject("Count", typeof(RectTransform));
+            owner.transform.SetParent(parent, false);
+            owner.AddComponent<Canvas>().renderMode = RenderMode.WorldSpace;
+            rect = (RectTransform)owner.transform;
+            rect.sizeDelta = new Vector2(200, 200);
+            rect.localScale = Vector3.one * (boxWidth * .9f / 200);
+            rect.localPosition = new Vector3(0, .23f, 0);
+            rect.localRotation = Quaternion.Euler(45, 0, 0);
+            var labelOwner = new GameObject("Label", typeof(RectTransform));
+            labelOwner.transform.SetParent(rect, false);
+            var labelRect = (RectTransform)labelOwner.transform;
+            labelRect.anchorMin = Vector2.zero;
+            labelRect.anchorMax = Vector2.one;
+            labelRect.offsetMin = labelRect.offsetMax = Vector2.zero;
+            var label = labelOwner.AddComponent<Text>();
+            label.font = font;
+            label.fontSize = 90;
+            label.fontStyle = FontStyle.Bold;
+            label.alignment = TextAnchor.MiddleCenter;
+            label.color = Color.white;
+            label.raycastTarget = false;
+            label.text = "30";
+            var outline = labelOwner.AddComponent<Outline>();
+            outline.effectColor = Color.black;
+            outline.effectDistance = new Vector2(3, -3);
+            return label;
         }
 
         private static AntActor CreateAntPrefab()
@@ -171,7 +209,7 @@ namespace ColonyFlow.Gameplay.Editor
                 }
             var brick = Primitive(root.transform, "Carried Brick", PrimitiveType.Cube, new Vector3(0, .55f, .24f),
                 new Vector3(.7f, .24f, .7f), Color.white, false);
-            actor.Configure(brick, abdomen);
+            actor.Configure(brick.GetComponent<Renderer>(), abdomen);
             actor.ConfigureJumpHeight(1.4f * LayoutUnit);
             brick.SetActive(false);
             var prefab = PrefabUtility.SaveAsPrefabAsset(root, BasePath + "Prefabs/Ant.prefab");
@@ -182,37 +220,46 @@ namespace ColonyFlow.Gameplay.Editor
         private static GameObject Primitive(Transform parent, string name, PrimitiveType type, Vector3 position,
             Vector3 scale, Color color, bool keepCollider, bool affectedByLight = true)
         {
-            var obj = GameObject.CreatePrimitive(type); obj.name = name;
-            scale *= LayoutUnit;
+            var obj = GameObject.CreatePrimitive(type);
+            obj.name = name;
             if (parent.root.name == "ColorBox" || parent.root.name == "Ant") position *= LayoutUnit;
-            obj.transform.SetParent(parent, false); obj.transform.localPosition = position; obj.transform.localScale = scale;
-            var renderer = obj.GetComponent<Renderer>();
-            renderer.sharedMaterial = material;
-            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            renderer.receiveShadows = false;
-            // Persist the authoring color in a material asset; property blocks are not serialized.
-            string path = BasePath + "Materials/Gameplay-" + ColorUtility.ToHtmlStringRGBA(color) + ".mat";
-            var tinted = AssetDatabase.LoadAssetAtPath<Material>(path);
-            if (tinted == null)
-            {
-                tinted = new Material(material); tinted.SetColor("_BaseColor", color);
-                AssetDatabase.CreateAsset(tinted, path);
-            }
-            tinted.shader = Shader.Find(affectedByLight ? "Universal Render Pipeline/Lit" : "Universal Render Pipeline/Unlit"); tinted.SetColor("_BaseColor", color);
-            if (affectedByLight) ConfigureSoftLit(tinted);
-            EditorUtility.SetDirty(tinted);
-            renderer.sharedMaterial = tinted;
+            obj.transform.SetParent(parent, false);
+            obj.transform.localPosition = position;
+            obj.transform.localScale = scale * LayoutUnit;
+            ConfigurePrimitiveRenderer(obj.GetComponent<Renderer>(), color, affectedByLight);
             if (type == PrimitiveType.Cube) obj.GetComponent<MeshFilter>().sharedMesh = RoundedCube();
             if (!keepCollider) UnityEngine.Object.DestroyImmediate(obj.GetComponent<Collider>());
             return obj;
         }
+
+        private static void ConfigurePrimitiveRenderer(Renderer renderer, Color color, bool affectedByLight)
+        {
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            renderer.sharedMaterial = TintedMaterial(color, affectedByLight);
+        }
+
+        private static Material TintedMaterial(Color color, bool affectedByLight)
+        {
+            string path = BasePath + "Materials/Gameplay-" + ColorUtility.ToHtmlStringRGBA(color) + ".mat";
+            var tinted = AssetDatabase.LoadAssetAtPath<Material>(path);
+            if (tinted == null)
+            {
+                tinted = new Material(material);
+                AssetDatabase.CreateAsset(tinted, path);
+            }
+            tinted.shader = Shader.Find(affectedByLight ? "Universal Render Pipeline/Lit" : "Universal Render Pipeline/Unlit");
+            tinted.SetColor("_BaseColor", color);
+            if (affectedByLight) ConfigureSoftLit(tinted);
+            EditorUtility.SetDirty(tinted);
+            return tinted;
+        }
+
         private static Transform Point(Transform parent, string name, Vector3 world)
         {
             var point = new GameObject(name).transform;
             point.SetParent(parent, false); point.position = world; return point;
         }
-        private static float PortraitViewportY(Camera camera, Vector3 point) =>
-            .5f + Vector3.Dot(point - camera.transform.position, camera.transform.up) / (2 * camera.orthographicSize);
         private static Vector3 ScreenWorld(Camera camera, float x, float y)
         {
             // Bake against portrait aspect regardless of the Editor Game View's current size.
@@ -223,43 +270,40 @@ namespace ColonyFlow.Gameplay.Editor
             new Plane(Vector3.up, Vector3.zero).Raycast(ray, out float distance);
             return ray.GetPoint(distance);
         }
-        public static GameObject PrepareRoundedCell()
+        public static CellView PrepareRoundedCell()
         {
-            const string modelPath = BasePath + "Prefabs/rounded_cube.glb";
-            AssetDatabase.ImportAsset(modelPath, ImportAssetOptions.ForceUpdate);
-            var model = AssetDatabase.LoadAssetAtPath<GameObject>(modelPath);
-            if (model == null) throw new InvalidOperationException("Cannot import rounded_cube.glb as a model.");
+            const string prefabPath = BasePath + "Prefabs/RoundedMapCell.prefab";
+            var existing = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
+            if (existing != null) return existing.GetComponent<CellView>();
+            var mesh = LoadRoundedMesh();
+            var cellMaterial = AssetDatabase.LoadAssetAtPath<Material>(BasePath + "Materials/MapCell.mat");
+            if (mesh == null || cellMaterial == null) return null;
             var root = new GameObject("RoundedMapCell");
-            try
-            {
-                root.AddComponent<CellView>();
-                var visual = UnityEngine.Object.Instantiate(model, root.transform, false);
-                visual.name = "Rounded Cube";
-                var renderers = visual.GetComponentsInChildren<Renderer>(true);
-                if (renderers.Length == 0) throw new InvalidOperationException("Rounded cube has no renderer.");
-                var bounds = renderers[0].bounds;
-                foreach (var renderer in renderers) bounds.Encapsulate(renderer.bounds);
-                if (bounds.size.x <= 0 || bounds.size.y <= 0 || bounds.size.z <= 0)
-                    throw new InvalidOperationException("Rounded cube has invalid bounds.");
-                var scale = new Vector3(1 / bounds.size.x, 1 / bounds.size.y, 1 / bounds.size.z);
-                visual.transform.localScale = Vector3.Scale(visual.transform.localScale, scale);
-                visual.transform.localPosition = -Vector3.Scale(bounds.center, scale);
-                var cellMaterial = AssetDatabase.LoadAssetAtPath<Material>(BasePath + "Materials/MapCell.mat");
-                cellMaterial.shader = Shader.Find("Universal Render Pipeline/Lit");
-                ConfigureSoftLit(cellMaterial);
-                EditorUtility.SetDirty(cellMaterial);
-                foreach (var renderer in renderers)
-                {
-                    var materials = renderer.sharedMaterials;
-                    for (int i = 0; i < materials.Length; i++) materials[i] = cellMaterial;
-                    renderer.sharedMaterials = materials;
-                    renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                    renderer.receiveShadows = false;
-                }
-                return PrefabUtility.SaveAsPrefabAsset(root, BasePath + "Prefabs/RoundedMapCell.prefab");
-            }
-            finally { UnityEngine.Object.DestroyImmediate(root); }
+            var view = root.AddComponent<CellView>();
+            var visual = new GameObject("Rounded Cube");
+            visual.transform.SetParent(root.transform, false);
+            visual.AddComponent<MeshFilter>().sharedMesh = mesh;
+            var renderer = visual.AddComponent<MeshRenderer>();
+            renderer.sharedMaterial = cellMaterial;
+            var size = mesh.bounds.size;
+            var scale = new Vector3(1 / size.x, 1 / size.y, 1 / size.z);
+            visual.transform.localScale = scale;
+            visual.transform.localPosition = -Vector3.Scale(mesh.bounds.center, scale);
+            view.Configure(new[] { renderer });
+            var prefab = PrefabUtility.SaveAsPrefabAsset(root, prefabPath);
+            UnityEngine.Object.DestroyImmediate(root);
+            return prefab.GetComponent<CellView>();
         }
+
+        private static Mesh LoadRoundedMesh()
+        {
+            const string path = BasePath + "Prefabs/rounded_cube.glb";
+            AssetDatabase.ImportAsset(path);
+            foreach (var asset in AssetDatabase.LoadAllAssetsAtPath(path))
+                if (asset is Mesh mesh) return mesh;
+            return null;
+        }
+
         private static void ConfigureSoftLit(Material target)
         {
             target.SetFloat("_Metallic", 0);

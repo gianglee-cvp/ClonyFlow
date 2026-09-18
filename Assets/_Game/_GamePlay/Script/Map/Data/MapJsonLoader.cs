@@ -1,4 +1,3 @@
-﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -6,94 +5,81 @@ namespace ColonyFlow.Gameplay
 {
     public static class MapJsonLoader
     {
+        // Level JSON is authored data. Invalid field values return null.
         public static MapModel Load(string json)
         {
-            if (string.IsNullOrWhiteSpace(json))
-                throw new FormatException("Map JSON is empty.");
-
-            string document = json.Trim();
-            if (!document.StartsWith("{", StringComparison.Ordinal) ||
-                !document.EndsWith("}", StringComparison.Ordinal))
-                throw new FormatException("Map JSON must be an object.");
-
-            MapJsonData data;
-            try
-            {
-                data = JsonUtility.FromJson<MapJsonData>(document);
-            }
-            catch (ArgumentException exception)
-            {
-                throw new FormatException("Cannot parse map JSON: " + exception.Message, exception);
-            }
-
-            if (data == null || data.rows <= 0 || data.columns <= 0)
-                throw new FormatException("Map rows and columns must be positive.");
-
-            long expectedCount = (long)data.rows * data.columns;
-            if (expectedCount > int.MaxValue || data.cells == null || data.cells.Length != expectedCount)
-                throw new FormatException("Map cells count must equal rows * columns.");
-
-            ValidateVector(data.cameraPosition, "cameraPosition");
-            ValidateVector(data.cameraRotation, "cameraRotation");
-            ValidateVector(data.firstCellPosition, "firstCellPosition");
-            if (data.cellScale != null && (data.cellScale.x != 0 || data.cellScale.y != 0 || data.cellScale.z != 0))
-            {
-                ValidateVector(data.cellScale, "cellScale");
-                if (data.cellScale.x <= 0 || data.cellScale.y <= 0 || data.cellScale.z <= 0)
-                    throw new FormatException("Map cellScale components must be positive.");
-            }
-            if (data.cellSpacing == null || !IsFinite(data.cellSpacing.x) ||
-                !IsFinite(data.cellSpacing.z) || data.cellSpacing.x <= 0 || data.cellSpacing.z <= 0)
-                throw new FormatException("Map cellSpacing.x and cellSpacing.z must be finite and positive.");
-
-            // Check the furthest coordinate before allocating any scene objects.
-            if (!IsFinite(data.firstCellPosition.x + (data.columns - 1) * data.cellSpacing.x) ||
-                !IsFinite(data.firstCellPosition.z - (data.rows - 1) * data.cellSpacing.z))
-                throw new FormatException("Map firstCellPosition/cellSpacing produce non-finite coordinates.");
-
-            if (data.palette == null)
-                throw new FormatException("Map palette is required (it can be empty for an empty map).");
-
-            var colors = new Dictionary<int, Color>();
-            for (int i = 0; i < data.palette.Length; i++)
-            {
-                var entry = data.palette[i];
-                if (entry == null || entry.id <= 0 || colors.ContainsKey(entry.id))
-                    throw new FormatException($"Map palette[{i}].id must be positive and unique; 0 is empty.");
-                if (!IsHexColor(entry.hex) || !ColorUtility.TryParseHtmlString(entry.hex, out var color))
-                    throw new FormatException($"Map palette[{i}].hex must be #RRGGBB or #RRGGBBAA.");
-                colors.Add(entry.id, color);
-            }
-
-            for (int i = 0; i < data.cells.Length; i++)
-            {
-                int id = data.cells[i];
-                if (id < 0 || (id != 0 && !colors.ContainsKey(id)))
-                    throw new FormatException($"Map cells[{i}] has unknown colorId {id}.");
-            }
-
+            var data = ReadData(json);
+            if (!HasValidLayout(data)) return null;
+            var colors = ReadPalette(data.palette);
+            if (colors == null || !HasValidColors(data, colors)) return null;
             return new MapModel(data, colors);
         }
 
-        private static bool IsHexColor(string value)
+        private static MapJsonData ReadData(string json)
         {
-            if (value == null || (value.Length != 7 && value.Length != 9) || value[0] != '#')
-                return false;
-            for (int i = 1; i < value.Length; i++)
+            if (string.IsNullOrWhiteSpace(json)) return null;
+            string document = json.Trim();
+            if (!document.StartsWith("{") || !document.EndsWith("}")) return null;
+            return JsonUtility.FromJson<MapJsonData>(document);
+        }
+
+        private static bool HasValidLayout(MapJsonData data)
+        {
+            if (data == null || data.rows <= 0 || data.columns <= 0) return false;
+            if (data.cells == null || data.cells.LongLength != (long)data.rows * data.columns) return false;
+            if (!IsFinite(data.cameraPosition) || !IsFinite(data.cameraRotation) || !IsFinite(data.firstCellPosition)) return false;
+            if (data.cellSpacing == null || !IsPositive(data.cellSpacing.x) || !IsPositive(data.cellSpacing.z)) return false;
+            if (data.cellScale != null && (data.cellScale.x != 0 || data.cellScale.y != 0 || data.cellScale.z != 0) &&
+                (!IsPositive(data.cellScale.x) || !IsPositive(data.cellScale.y) || !IsPositive(data.cellScale.z))) return false;
+            return IsFinite(data.firstCellPosition.x + (data.columns - 1) * data.cellSpacing.x) &&
+                IsFinite(data.firstCellPosition.z - (data.rows - 1) * data.cellSpacing.z);
+        }
+
+        private static Dictionary<int, Color> ReadPalette(MapPaletteEntry[] palette)
+        {
+            if (palette == null) return null;
+            var colors = new Dictionary<int, Color>();
+            foreach (var entry in palette)
             {
-                char c = value[i];
-                if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')))
-                    return false;
+                if (entry == null || entry.id <= 0 || colors.ContainsKey(entry.id) ||
+                    !IsHexColor(entry.hex) || !ColorUtility.TryParseHtmlString(entry.hex, out var color)) return null;
+                colors.Add(entry.id, color);
+            }
+            return colors;
+        }
+
+        private static bool HasValidColors(MapJsonData data, Dictionary<int, Color> colors)
+        {
+            foreach (int id in data.cells)
+                if (id < 0 || id != 0 && !colors.ContainsKey(id)) return false;
+            return HasValidQueues(data.queues, colors);
+        }
+
+        private static bool HasValidQueues(BoxQueueData[] queues, Dictionary<int, Color> colors)
+        {
+            if (queues == null) return false;
+            foreach (var queue in queues)
+            {
+                if (queue?.boxes == null) return false;
+                foreach (var box in queue.boxes)
+                    if (box == null || box.antCount <= 0 || !colors.ContainsKey(box.colorId)) return false;
             }
             return true;
         }
 
-        private static void ValidateVector(MapVectorData vector, string name)
+        private static bool IsHexColor(string value)
         {
-            if (vector == null || !IsFinite(vector.x) || !IsFinite(vector.y) || !IsFinite(vector.z))
-                throw new FormatException($"Map {name} is required and must contain finite coordinates.");
+            if (value == null || (value.Length != 7 && value.Length != 9) || value[0] != '#') return false;
+            for (int i = 1; i < value.Length; i++)
+            {
+                char c = value[i];
+                if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F'))) return false;
+            }
+            return true;
         }
 
+        private static bool IsFinite(MapVectorData value) => value != null && IsFinite(value.x) && IsFinite(value.y) && IsFinite(value.z);
         private static bool IsFinite(float value) => !float.IsNaN(value) && !float.IsInfinity(value);
+        private static bool IsPositive(float value) => IsFinite(value) && value > 0;
     }
 }

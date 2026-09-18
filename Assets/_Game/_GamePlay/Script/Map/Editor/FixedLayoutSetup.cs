@@ -1,4 +1,3 @@
-using System;
 using System.IO;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -26,22 +25,33 @@ namespace ColonyFlow.Gameplay.Editor
         {
             var scene = EditorSceneManager.OpenScene(ScenePath);
             var view = UnityEngine.Object.FindFirstObjectByType<MapView>();
-            if (view == null) throw new InvalidOperationException("MapDemo needs a MapView.");
-            view.Clear();
-            foreach (string name in new[] { "Fixed Gameplay Canvas", "Background Canvas" })
-            {
-                var old = GameObject.Find(name);
-                if (old != null) UnityEngine.Object.DestroyImmediate(old);
-            }
             var camera = Camera.main;
-            if (camera == null) throw new InvalidOperationException("MapDemo needs a main camera.");
-            var serialized = new SerializedObject(view);
-            var mapRoot = (Transform)serialized.FindProperty("mapRoot").objectReferenceValue;
-            mapRoot.name = "MapRoot";
-            mapRoot.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
-            mapRoot.localScale = Vector3.one;
-            // Freeze the camera against the maximum 20x20 contract, not each level's silhouette.
-            view.SetDemoBounds(true);
+            if (view == null || camera == null) return;
+            view.Clear();
+            SceneObjects.RemoveRoots("Fixed Gameplay Canvas", "Background Canvas");
+            ConfigureMapRoot(view.Root);
+            ConfigureCamera(camera);
+            ConfigureLight();
+            view.ConfigureCellPrefab(GameplayDemoSetup.PrepareRoundedCell());
+            rounded = CreateRoundedSprite();
+            font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            CreateBackground(camera);
+            CreateForeground();
+            ConfigurePortrait();
+            GameplayDemoSetup.BuildIntoScene(view, camera);
+            EditorSceneManager.SaveScene(scene, ScenePath);
+            AssetDatabase.SaveAssets();
+        }
+
+        private static void ConfigureMapRoot(Transform root)
+        {
+            root.name = "MapRoot";
+            root.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+            root.localScale = Vector3.one;
+        }
+
+        private static void ConfigureCamera(Camera camera)
+        {
             camera.orthographic = true;
             camera.transform.rotation = Quaternion.Euler(45, 0, 0);
             camera.orthographicSize = 9;
@@ -51,7 +61,11 @@ namespace ColonyFlow.Gameplay.Editor
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.backgroundColor = Hex("#FFD18E");
             camera.ResetAspect();
-            var light = GameObject.Find("Map Light");
+        }
+
+        private static void ConfigureLight()
+        {
+            var light = SceneObjects.FindRoot("Map Light");
             if (light == null) light = new GameObject("Map Light", typeof(Light));
             var key = light.GetComponent<Light>();
             key.type = LightType.Directional; key.intensity = .85f;
@@ -60,11 +74,10 @@ namespace ColonyFlow.Gameplay.Editor
             light.transform.rotation = Quaternion.Euler(50, -35, 0);
             RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
             RenderSettings.ambientLight = new Color(.65f, .65f, .65f);
-            view.ConfigureCellPrefab(GameplayDemoSetup.PrepareRoundedCell());
-            view.Clear();
-            rounded = CreateRoundedSprite();
-            font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        }
 
+        private static void CreateBackground(Camera camera)
+        {
             // Native world-space Canvas lies behind the cells, with fixed transform and size.
             var background = NewCanvas("Background Canvas", RenderMode.WorldSpace);
             background.sizeDelta = new Vector2(1080, 1920);
@@ -81,6 +94,10 @@ namespace ColonyFlow.Gameplay.Editor
                 shape.localRotation = Quaternion.Euler(0, 0, 38);
             }
 
+        }
+
+        private static void CreateForeground()
+        {
             var foreground = NewCanvas("Fixed Gameplay Canvas", RenderMode.ScreenSpaceOverlay);
             var scaler = foreground.gameObject.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
@@ -107,16 +124,16 @@ namespace ColonyFlow.Gameplay.Editor
                 var lockInner = InsetBox(lockOuter, "LockFace", 4, Hex("#7D94C2"));
                 Label(lockInner, locks[i], 38, Hex("#FDFDFD"));
             }
+        }
+
+        private static void ConfigurePortrait()
+        {
             PlayerSettings.defaultScreenWidth = 1080;
             PlayerSettings.defaultScreenHeight = 1920;
             PlayerSettings.defaultInterfaceOrientation = UIOrientation.Portrait;
             PlayerSettings.allowedAutorotateToLandscapeLeft = false;
             PlayerSettings.allowedAutorotateToLandscapeRight = false;
             PlayerSettings.allowedAutorotateToPortraitUpsideDown = false;
-            GameplayDemoSetup.BuildIntoScene(view, camera);
-            EditorSceneManager.SaveScene(scene, ScenePath);
-            AssetDatabase.SaveAssets();
-            Debug.Log("FIXED_PORTRAIT_CREATED: unscaled map, baked camera, background and foreground canvases.");
         }
 
         private static RectTransform NewCanvas(string name, RenderMode mode)
@@ -160,7 +177,7 @@ namespace ColonyFlow.Gameplay.Editor
 
         private static RectTransform Card(RectTransform parent, string name, Vector2 min, Vector2 max, Color color)
         {
-            var shadow = Box(parent, name + " Shadow", min - new Vector2(0, .025f), max - new Vector2(0, .025f), Hex("#A38969"));
+            Box(parent, name + " Shadow", min - new Vector2(0, .025f), max - new Vector2(0, .025f), Hex("#A38969"));
             var outer = Box(parent, name, min, max, Hex("#FFF4DA"));
             var face = InsetBox(outer, "Face", 6, color);
             return face;

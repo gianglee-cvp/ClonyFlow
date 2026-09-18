@@ -11,43 +11,40 @@ namespace ColonyFlow.Core.Tweening
         internal static bool IsInitialized => applied != null && DOTween.instance != null && ReferenceEquals(engine, DOTween.instance);
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
-        private static void ResetSession() { applied = null; engine = null; }
-
-        public static void Initialize(TweenSettings settings)
+        private static void ResetSession()
         {
-            if (settings == null) throw new ArgumentNullException(nameof(settings));
-            if (settings.TweenersCapacity <= 0 || settings.SequencesCapacity <= 0 ||
-                settings.TweenersCapacity < settings.SequencesCapacity)
-                throw new ArgumentOutOfRangeException(nameof(settings), "Capacities must be positive; tweeners must cover sequences.");
-            if (!Enum.IsDefined(typeof(LogBehaviour), settings.LogBehaviour))
-                throw new ArgumentOutOfRangeException(nameof(settings), "Invalid log behaviour.");
+            applied = null;
+            engine = null;
+        }
 
-            if (IsInitialized)
-            {
-                if (applied.TweenersCapacity != settings.TweenersCapacity ||
-                    applied.SequencesCapacity != settings.SequencesCapacity ||
-                    applied.UseSafeMode != settings.UseSafeMode ||
-                    applied.LogBehaviour != settings.LogBehaviour)
-                    throw new InvalidOperationException("TweenRuntime is already initialized with different settings.");
-                return;
-            }
-            if (DOTween.instance != null)
-                throw new InvalidOperationException("Initialize TweenRuntime before creating any DOTween tween.");
-
-            if (!Application.isPlaying)
-                throw new InvalidOperationException("TweenRuntime requires Play Mode.");
+        public static bool Initialize(TweenSettings settings)
+        {
+            if (!IsValid(settings)) return false;
+            if (IsInitialized) return Matches(settings);
+            if (DOTween.instance != null || !Application.isPlaying) return false;
             var initialization = DOTween.Init(false, settings.UseSafeMode, settings.LogBehaviour);
-            if (initialization == null)
-                throw new InvalidOperationException("DOTween cannot initialize while the application is quitting.");
+            if (initialization == null) return false;
             initialization.SetCapacity(settings.TweenersCapacity, settings.SequencesCapacity);
             engine = DOTween.instance;
-            applied = new TweenSettings
-            {
-                TweenersCapacity = settings.TweenersCapacity,
-                SequencesCapacity = settings.SequencesCapacity,
-                UseSafeMode = settings.UseSafeMode,
-                LogBehaviour = settings.LogBehaviour
-            };
+            applied = Snapshot(settings);
+            return true;
         }
+
+        private static bool IsValid(TweenSettings settings) =>
+            settings != null && settings.TweenersCapacity > 0 && settings.SequencesCapacity > 0 &&
+            settings.TweenersCapacity >= settings.SequencesCapacity && Enum.IsDefined(typeof(LogBehaviour), settings.LogBehaviour);
+
+        private static bool Matches(TweenSettings settings) =>
+            applied.TweenersCapacity == settings.TweenersCapacity &&
+            applied.SequencesCapacity == settings.SequencesCapacity &&
+            applied.UseSafeMode == settings.UseSafeMode && applied.LogBehaviour == settings.LogBehaviour;
+
+        private static TweenSettings Snapshot(TweenSettings settings) => new TweenSettings
+        {
+            TweenersCapacity = settings.TweenersCapacity,
+            SequencesCapacity = settings.SequencesCapacity,
+            UseSafeMode = settings.UseSafeMode,
+            LogBehaviour = settings.LogBehaviour
+        };
     }
 }

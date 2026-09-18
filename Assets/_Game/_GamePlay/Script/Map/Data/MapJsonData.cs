@@ -15,6 +15,20 @@ namespace ColonyFlow.Gameplay
         public MapVectorData cellScale;
         public MapPaletteEntry[] palette;
         public int[] cells;
+        public BoxQueueData[] queues;
+    }
+
+    [Serializable]
+    public sealed class BoxQueueData
+    {
+        public BoxData[] boxes;
+    }
+
+    [Serializable]
+    public sealed class BoxData
+    {
+        public int colorId;
+        public int antCount;
     }
 
     [Serializable]

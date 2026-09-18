@@ -13,15 +13,7 @@ namespace ColonyFlow.Core.Tweening
         public GameObject Owner { get; }
         public bool IsDisposed => disposed || Owner == null;
 
-        public TweenScope(GameObject owner)
-        {
-            if (ReferenceEquals(owner, null)) throw new ArgumentNullException(nameof(owner));
-            if (owner == null || !owner.scene.IsValid())
-                throw new ArgumentException("Owner must be a live scene GameObject.", nameof(owner));
-            if (!TweenRuntime.IsInitialized)
-                throw new InvalidOperationException("Initialize TweenRuntime before creating a scope.");
-            Owner = owner;
-        }
+        public TweenScope(GameObject owner) => Owner = owner;
 
         /// <summary>
         /// Transfer lifecycle of a standalone tween or outermost sequence.
@@ -29,9 +21,7 @@ namespace ColonyFlow.Core.Tweening
         /// </summary>
         public T Track<T>(T tween) where T : Tween
         {
-            if (IsDisposed) throw new ObjectDisposedException(nameof(TweenScope));
-            if (tween == null) throw new ArgumentNullException(nameof(tween));
-            if (!tween.IsActive()) throw new ArgumentException("Tween has already been killed.", nameof(tween));
+            if (IsDisposed || !Owner.scene.IsValid() || !TweenRuntime.IsInitialized || tween == null || !tween.IsActive()) return null;
             Prune();
             foreach (var tracked in tweens)
                 if (ReferenceEquals(tracked, tween)) return tween;
@@ -64,19 +54,8 @@ namespace ColonyFlow.Core.Tweening
         {
             var snapshot = tweens.ToArray();
             tweens.Clear();
-            List<Exception> failures = null;
             foreach (var tween in snapshot)
-            {
-                if (!tween.IsActive()) continue;
-                try { tween.Kill(false); }
-                catch (Exception exception)
-                {
-                    if (failures == null) failures = new List<Exception>();
-                    failures.Add(exception);
-                }
-            }
-            if (failures != null)
-                throw new AggregateException("One or more tween cancellation callbacks failed.", failures);
+                if (tween.IsActive()) tween.Kill(false);
         }
     }
 }

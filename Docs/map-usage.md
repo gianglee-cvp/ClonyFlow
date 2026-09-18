@@ -1,31 +1,79 @@
-# Sử dụng Map JSON
+# Sử dụng Level JSON
 
 ## Chạy demo
 
-Trong Unity, mở **ColonyFlow → Map → Open or Create Demo**, sau đó nhấn Play. Công cụ tạo hoặc mở scene `Assets/_Game/_GamePlay/Scenes/MapDemo.unity`, prefab và material dùng chung. Scene đọc `Assets/_Game/Data/Maps/demo-map.json`.
+Trong Unity, mở **ColonyFlow → Map → Open or Create Demo**, sau đó nhấn Play. Scene hiện tại là `Assets/_Game/_GamePlay/Scenes/MapDemo.unity`, đang gán `Assets/_Game/Data/Maps/map1.json`. Khi tạo scene mới, công cụ dùng `star-map.json`.
 
-## Gắn Map vào scene khác
+Mỗi level dùng **một JSON** chứa cả map, palette và hàng đợi hộp. Đổi level bằng cách gán `Map Json` trên `MapView`; `AntGameplay` lấy hàng đợi từ cùng model, không có JSON riêng hoặc fallback hộp.
 
-1. Thêm component `MapView` vào GameObject quản lý Map.
-2. Gán `Map Json` là TextAsset JSON, `Cell Prefab` là một prefab có Renderer, `Map Camera` là camera cần đặt vị trí và `Map Root` là Transform tổ chức các viên.
-3. Bật `Load On Start` để spawn khi bắt đầu Play Mode.
-4. Trong menu component, dùng **Load Map JSON** để reload và **Clear Map** để dọn. Trong code, dùng `LoadJson(string)` và `Clear()`.
+## Dữ liệu
 
-MapView tạo root riêng dưới Map Root; không xóa các GameObject khác. JSON lỗi sẽ báo lỗi và giữ map đang hoạt động. Vật cũ được vô hiệu hóa ngay trước khi Destroy thực thi cuối frame. Ở Edit Mode, thao tác dọn dùng DestroyImmediate.
+Giữ các trường map: `rows`, `columns`, `cameraPosition`, `cameraRotation`, `firstCellPosition`, `cellSpacing`, `cellScale` (tùy chọn), `palette`, `cells`. Thêm `queues`:
 
-## Quy ước
+```json
+"queues": [
+  {
+    "boxes": [
+      { "colorId": 1, "antCount": 30 },
+      { "colorId": 2, "antCount": 15 }
+    ]
+  }
+]
+```
 
-- ID 0 là ô trống; các ID dương tra màu trong palette riêng của map.
-- Dùng HEX `#RRGGBB` hoặc `#RRGGBBAA`. Trong suốt phụ thuộc material, không chỉ phụ thuộc alpha trong JSON.
-- Cells đọc theo row rồi column; số phần tử bằng rows × columns.
-- Vị trí đầu là pivot ô `[0,0]`, kể cả khi ô đó trống.
-- Cột tăng +X, hàng tăng -Z; spacing là khoảng cách giữa pivot các viên.
-- Camera position và rotation là world position và Euler degrees. Projection/FOV/orthographic size vẫn cấu hình trong scene.
-- Material prefab cần shader có `_BaseColor` hoặc `_Color`. Tô màu bằng MaterialPropertyBlock, không sửa shared material.
-- Bản hiện tại dùng Instantiate/Destroy, chưa dùng pooling hoặc pathfinding.
+- `queues` theo thứ tự trái sang phải; `boxes` theo thứ tự đầu đến cuối hàng. Không sort lại dữ liệu.
+- `colorId` dùng chung palette với map; `antCount` là ngân sách kiến của hộp.
+- Với level hoàn chỉnh, tổng `antCount` theo từng màu phải bằng số viên màu đó.
+- JSON cần đúng cú pháp. Loader trả `null` khi giá trị trường không hợp lệ; không có logic exception để phục hồi JSON sai cú pháp.
+- `demo-map-small.json` là cùng map demo với hộp nhỏ hơn; ngân sách vẫn đủ để hoàn thành.
+- Demo có ba anchor hàng đợi. Số queue của JSON không được vượt số anchor được gán.
 
-Định dạng JSON đầy đủ: [Kế hoạch Map](plans/2026-09-17-map-json-spawn.md).
+## Gắn vào scene
+
+1. Thêm `MapView`, gán TextAsset level, prefab **CellView**, camera và map root.
+2. Gán sẵn mảng renderer trên prefab `CellView`. Gán card surface nếu cần fit map vào card.
+3. Trên `AntGameplay`, gán map, camera, prefab hộp/kiến, anchor hộp, điểm spawn, điểm vào card, anchor queue và các điểm về hang.
+4. Prefab `BoxActor` cần face renderer, body renderers, count label, count canvas và hit collider. Prefab `AntActor` cần carried brick, carried renderer và abdomen.
+5. Bật `Load On Start`, hoặc gọi `MapView.LoadMap()` rồi `AntGameplay.Initialize()`. Cả hai trả `bool` cho biết có thành công không.
+
+Dùng menu component **Load Level JSON**, **Clear Map**, **Restart Level**, hoặc gọi `LoadJson(string)`, `Clear()`, `Restart()`.
+
+## Quy ước và gameplay
+
+- ID 0 là ô trống. Palette dùng HEX `#RRGGBB` hoặc `#RRGGBBAA`; alpha phụ thuộc material.
+- Cells đọc theo hàng rồi cột; số phần tử bằng rows × columns. Cột tăng +X, hàng tăng -Z.
+- Grid giữ pivot để tìm đường; mesh được nâng riêng lên card surface.
+- Camera và layout demo được thiết lập trong Editor. Runtime không tự áp dụng camera position/rotation khi đổi level.
+- Tô màu bằng MaterialPropertyBlock, không sửa shared material.
+- Chỉ đi qua ô trống. Ưu tiên hướng tiếp cận thẳng thông thoáng; nếu cần rẽ, dùng Dijkstra với chi phí từ điểm vào card.
+- Chọn cặp hộp–viên theo tổng quãng đường đi từ điểm spawn. Khoảng cách bằng nhau giữ thứ tự hàng, cột rồi slot.
+- Viên đã được kiến đặt trước không được giao lại. Thu thập cập nhật khả năng tiếp cận và xóa cache đường đi.
+- Renderer/canvas/collider được gán sẵn; không tìm component qua children/parent. Click tra hộp bằng collider đã đăng ký.
+- Hiện dùng Instantiate/Destroy. Pause và x2 do gameplay quản lý; không phụ thuộc Time.timeScale.
+
+## Animation bằng Core Tween
+
+- `AntGameplay` khởi tạo Core Tween trong Play Mode. `ActorAnimation` giữ sequence trong `TweenScope` và cấp thời gian qua `Goto`; không cập nhật tween manual toàn cục.
+- Box `DOJump` lên slot trong `Slot Jump Duration` (mặc định 0.35 giây), độ cao `Slot Jump Height` nhân `layoutUnit`. Slot được giữ ngay khi chọn; kiến chỉ xuất phát sau khi box đáp.
+- Các box còn lại trượt lên bằng `DOMove`, với `Queue Move Duration` mặc định 0.25 giây. Box mới hiện từ hàng thứ tư cũng trượt lên; các cột còn lại trượt ngang khi queue rỗng.
+- `Hole Approach Distance` xác định điểm rẽ trái/phải ở mép dưới, mặc định 12 nhân `layoutUnit` (khoảng 2.57 world unit trong demo). Kiến đi chéo đến điểm đứng ngoài hole rồi mới nhảy. Kiến ở trục giữa cũng chọn một phía tiếp cận.
+- `Hole Jump Distance` là khoảng cách XZ từ điểm đứng đến tâm hole, mặc định 3 nhân `layoutUnit` (khoảng 0.64 world unit trong demo). Đặt khoảng này lớn hơn bán kính miệng hole để kiến đứng ngoài trước khi nhảy vào `holeJump`.
+- Kiến `DOJump` trong `Jump Duration` (mặc định 0.55 giây). Scale tăng lên `Jump Scale Multiplier` (mặc định 1.25) trong 25% thời gian đầu, rồi giảm về 0 trong phần còn lại. `Jump Height` là độ cao theo world unit. Scale gốc được phục hồi khi bắt đầu chuyến mới.
+- Pause/x2 áp dụng cho cả di chuyển và tween; disable, destroy hoặc restart hủy tween và không phát callback hoàn thành chuyến.
 
 ## Kiểm tra
 
-Mở **Window → General → Test Runner → EditMode → Run All**, hoặc chọn assembly `ColonyFlow.Map.Tests`. Bộ test kiểm tra dữ liệu lỗi, grid/vị trí, alpha HEX, màu Renderer, camera, reload và Clear.
+Kiểm tra dữ liệu, quy tắc code và serialized assets:
+
+```powershell
+python -B -m unittest discover -s Tools/Tests -v
+```
+
+Smoke test Unity chạy trong bản sao project dưới `Temp/LevelVerification`:
+
+```powershell
+python -B Tools/prepare_level_verification.py
+& 'C:/Program Files/Unity/Hub/Editor/6000.3.9f1/Editor/Unity.exe' -batchmode -nographics -projectPath 'D:/Project_unity/ColonyFlow/Temp/LevelVerification/Project' -executeMethod LevelSmokeChecks.Run -logFile 'D:/Project_unity/ColonyFlow/Temp/LevelVerification/smoke.log'
+```
+
+Bộ kiểm tra xác nhận load map/queue, thứ tự hộp, click collider, chọn viên gần, đường rẽ, pause, resize card, thu thập/trở về/nhảy, hoàn thành level, restart và animation box/kiến trong Play Mode. Kết quả ở `Temp/LevelVerification/smoke-results.txt`.

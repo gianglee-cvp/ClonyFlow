@@ -1,109 +1,214 @@
 using System.Collections.Generic;
 using UnityEngine;
+using DG.Tweening;
 
 namespace ColonyFlow.Gameplay
 {
     public enum AntTripState { Inactive, Outbound, WaitingPickup, Returning, Jumping }
+
     public sealed class AntActor : MonoBehaviour
     {
         [SerializeField] private GameObject carriedBrick;
+        [SerializeField] private Renderer carriedRenderer;
         [SerializeField] private Renderer abdomen;
         [SerializeField] private float jumpHeight = 1.4f;
+        [SerializeField, Min(.01f)] private float jumpDuration = .55f;
+        [SerializeField, Min(1)] private float jumpScaleMultiplier = 1.25f;
+        private ActorAnimation animation;
+        private Vector3 initialScale;
+        private Transform carriedTransform;
+        private Transform carryParent;
         private List<Vector3> route;
         private List<Vector3> returnRoute;
+        private MaterialPropertyBlock propertyBlock;
         private int waypoint;
-        private Vector3 jumpStart, jumpTarget;
-        private float jumpTime;
+        private Vector3 jumpTarget;
         private Vector3 carryLocalPosition, pickupPosition;
         private float pickupTime;
         public long TaskId { get; private set; }
         public Cell Target { get; private set; }
         public BoxActor Source { get; private set; }
         public AntTripState State { get; private set; }
+
+        private void Awake()
+        {
+            initialScale = transform.localScale;
+            animation = new ActorAnimation(gameObject);
+            CacheCarryTransforms();
+        }
+
+        public void Configure(Renderer brick, Renderer body)
+        {
+            carriedRenderer = brick;
+            carriedBrick = brick.gameObject;
+            abdomen = body;
+            CacheCarryTransforms();
+        }
+
+        private void CacheCarryTransforms()
+        {
+            if (carriedBrick == null) return;
+            carriedTransform = carriedBrick.transform;
+            carryParent = carriedTransform.parent;
+            carryLocalPosition = carriedTransform.localPosition;
+        }
+
         public void ConfigureJumpHeight(float height) => jumpHeight = height;
-        public void Configure(GameObject brick, Renderer body) { carriedBrick = brick; abdomen = body; }
+
         public void Begin(long id, BoxActor source, Cell target, Vector3 spawn, List<Vector3> outbound,
             List<Vector3> returning, Vector3 jump, Color color)
         {
-            TaskId = id; Source = source; Target = target; route = outbound; returnRoute = returning;
-            waypoint = 0; jumpTime = 0; jumpTarget = jump;
-            carryLocalPosition = carriedBrick.transform.localPosition; pickupTime = .2f;
+            if (carriedTransform == null) CacheCarryTransforms();
+            TaskId = id;
+            Source = source;
+            Target = target;
+            route = outbound;
+            returnRoute = returning;
+            waypoint = 0;
+            if (animation == null)
+            {
+                initialScale = transform.localScale;
+                animation = new ActorAnimation(gameObject);
+            }
+            animation.Cancel();
+            transform.localScale = initialScale;
+            jumpTarget = jump;
+            pickupTime = .2f;
             transform.position = spawn;
             State = AntTripState.Outbound;
             carriedBrick.SetActive(false);
-            var block = new MaterialPropertyBlock();
-            block.SetColor("_BaseColor", color); block.SetColor("_Color", color);
-            abdomen.SetPropertyBlock(block);
-            carriedBrick.GetComponent<Renderer>().SetPropertyBlock(block);
+            ApplyColor(color);
             gameObject.SetActive(true);
         }
+
+        private void ApplyColor(Color color)
+        {
+            if (propertyBlock == null) propertyBlock = new MaterialPropertyBlock();
+            propertyBlock.SetColor("_BaseColor", color);
+            propertyBlock.SetColor("_Color", color);
+            abdomen.SetPropertyBlock(propertyBlock);
+            carriedRenderer.SetPropertyBlock(propertyBlock);
+        }
+
         public void RemapCardRoute(System.Func<Vector3, Vector3> remap)
         {
             if (State == AntTripState.Inactive || State == AntTripState.Jumping) return;
             transform.position = remap(transform.position);
-            if (route != null)
-                for (int i = waypoint; i < route.Count; i++) route[i] = remap(route[i]);
-            if (returnRoute != null && returnRoute != route)
-                for (int i = 0; i < returnRoute.Count; i++) returnRoute[i] = remap(returnRoute[i]);
+            RemapWaypoints(route, waypoint, remap);
+            if (returnRoute != route) RemapWaypoints(returnRoute, 0, remap);
         }
+
+        private static void RemapWaypoints(List<Vector3> points, int start, System.Func<Vector3, Vector3> remap)
+        {
+            if (points == null) return;
+            for (int i = start; i < points.Count; i++) points[i] = remap(points[i]);
+        }
+
         public void ConfirmPickup(Vector3 brickPosition, Vector3 brickWorldScale)
         {
             if (State != AntTripState.WaitingPickup) return;
-            var parentScale = carriedBrick.transform.parent.lossyScale;
-            carriedBrick.transform.localScale = new Vector3(
-                brickWorldScale.x / parentScale.x,
-                brickWorldScale.y / parentScale.y,
-                brickWorldScale.z / parentScale.z);
+            SetCarryScale(brickWorldScale);
             carriedBrick.SetActive(true);
-            pickupPosition = brickPosition; pickupTime = 0;
-            carriedBrick.transform.position = brickPosition;
-            route = returnRoute; waypoint = 0; State = AntTripState.Returning;
+            pickupPosition = brickPosition;
+            pickupTime = 0;
+            carriedTransform.position = brickPosition;
+            route = returnRoute;
+            waypoint = 0;
+            State = AntTripState.Returning;
         }
+
+        private void SetCarryScale(Vector3 worldScale)
+        {
+            var parentScale = carryParent.lossyScale;
+            carriedTransform.localScale = new Vector3(
+                worldScale.x / parentScale.x, worldScale.y / parentScale.y, worldScale.z / parentScale.z);
+        }
+
         public void Advance(float delta, float speed)
         {
             AdvanceTrip(delta, speed);
-            if ((State == AntTripState.Returning || State == AntTripState.Jumping) && pickupTime < .2f)
-            {
-                pickupTime = Mathf.Min(.2f, pickupTime + delta);
-                carriedBrick.transform.position = Vector3.Lerp(pickupPosition,
-                    carriedBrick.transform.parent.TransformPoint(carryLocalPosition), pickupTime / .2f);
-                if (pickupTime >= .2f) carriedBrick.transform.localPosition = carryLocalPosition;
-            }
+            AdvancePickup(delta);
         }
+
+        private void AdvancePickup(float delta)
+        {
+            if ((State != AntTripState.Returning && State != AntTripState.Jumping) || pickupTime >= .2f) return;
+            pickupTime = Mathf.Min(.2f, pickupTime + delta);
+            carriedTransform.position = Vector3.Lerp(pickupPosition,
+                carryParent.TransformPoint(carryLocalPosition), pickupTime / .2f);
+            if (pickupTime >= .2f) carriedTransform.localPosition = carryLocalPosition;
+        }
+
         private void AdvanceTrip(float delta, float speed)
         {
             if (State == AntTripState.Inactive || State == AntTripState.WaitingPickup) return;
-            if (State == AntTripState.Jumping)
-            {
-                jumpTime += delta;
-                float t = Mathf.Clamp01(jumpTime / .55f);
-                transform.position = Vector3.Lerp(jumpStart, jumpTarget, t) + Vector3.up * (Mathf.Sin(t * Mathf.PI) * jumpHeight);
-                if (t >= 1) { State = AntTripState.Inactive; gameObject.SetActive(false); }
-                return;
-            }
-            float remaining = delta * speed;
+            if (State == AntTripState.Jumping) { animation.Advance(delta); return; }
+            if (!WalkRoute(delta * speed)) return;
+            if (State == AntTripState.Outbound) State = AntTripState.WaitingPickup;
+            else BeginJump();
+        }
+
+        private void FinishJump()
+        {
+            State = AntTripState.Inactive;
+            gameObject.SetActive(false);
+        }
+
+        private void BeginJump()
+        {
+            State = AntTripState.Jumping;
+            FaceDirection(jumpTarget - transform.position);
+            var jump = DOTween.Sequence()
+                .Append(transform.DOJump(jumpTarget, jumpHeight, 1, jumpDuration).SetEase(Ease.Linear))
+                .Join(DOTween.Sequence()
+                    .Append(transform.DOScale(initialScale * jumpScaleMultiplier, jumpDuration * .25f).SetEase(Ease.OutQuad))
+                    .Append(transform.DOScale(Vector3.zero, jumpDuration * .75f).SetEase(Ease.InQuad)))
+                .OnComplete(FinishJump);
+            if (animation.Play(jump)) return;
+            transform.position = jumpTarget;
+            transform.localScale = Vector3.zero;
+            FinishJump();
+        }
+
+        private bool WalkRoute(float remaining)
+        {
             while (waypoint < route.Count)
             {
                 var next = route[waypoint];
                 var direction = next - transform.position;
                 float distance = direction.magnitude;
-                if (direction.x * direction.x + direction.z * direction.z > .0001f)
-                    transform.rotation = Quaternion.LookRotation(new Vector3(direction.x, 0, direction.z));
+                FaceDirection(direction);
                 if (distance > remaining)
                 {
                     transform.position += direction.normalized * remaining;
-                    return;
+                    return false;
                 }
                 transform.position = next;
-                remaining -= distance; waypoint++;
+                remaining -= distance;
+                waypoint++;
             }
-            if (State == AntTripState.Outbound) State = AntTripState.WaitingPickup;
-            else { jumpStart = transform.position; jumpTime = 0; State = AntTripState.Jumping; }
+            return true;
         }
+
+        private void FaceDirection(Vector3 direction)
+        {
+            if (direction.x * direction.x + direction.z * direction.z > .0001f)
+                transform.rotation = Quaternion.LookRotation(new Vector3(direction.x, 0, direction.z));
+        }
+
         public void Cancel()
         {
-            State = AntTripState.Inactive; Source = null; Target = null;
-            route = null; returnRoute = null; carriedBrick.SetActive(false); gameObject.SetActive(false);
+            animation?.Cancel();
+            State = AntTripState.Inactive;
+            Source = null;
+            Target = null;
+            route = null;
+            returnRoute = null;
+            carriedBrick.SetActive(false);
+            gameObject.SetActive(false);
         }
+
+        private void OnDisable() => animation?.Cancel();
+        private void OnDestroy() => animation?.Dispose();
     }
 }

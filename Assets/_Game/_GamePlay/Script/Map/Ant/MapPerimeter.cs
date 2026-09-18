@@ -8,9 +8,10 @@ namespace ColonyFlow.Gameplay
     {
         private readonly float minX, maxX, minZ, maxZ, width, height, length;
         private readonly Transform root;
+        private readonly int bottomRow;
         public MapPerimeter(Transform mapRoot, MapModel map, Bounds cardLocalBounds)
         {
-            root = mapRoot; MapBottomRow = map.Rows - 1;
+            root = mapRoot; bottomRow = map.Rows - 1;
             minX = cardLocalBounds.min.x; maxX = cardLocalBounds.max.x;
             minZ = cardLocalBounds.min.z; maxZ = cardLocalBounds.max.z;
             width = maxX - minX; height = maxZ - minZ; length = 2 * (width + height);
@@ -32,26 +33,25 @@ namespace ColonyFlow.Gameplay
         }
         public Vector3 BottomEntry(float localX) => root.TransformPoint(new Vector3(Mathf.Clamp(localX, minX, maxX), 0, minZ));
         public Vector3 CellPoint(Cell cell) => root.TransformPoint(cell.Position);
+        public Vector3 RemapFrom(Vector3 world, Bounds old)
+        {
+            var p = root.InverseTransformPoint(world);
+            bool horizontal = Mathf.Abs(p.z - old.min.z) < .01f || Mathf.Abs(p.z - old.max.z) < .01f;
+            bool vertical = Mathf.Abs(p.x - old.min.x) < .01f || Mathf.Abs(p.x - old.max.x) < .01f;
+            if (!(horizontal && p.x >= old.min.x - .01f && p.x <= old.max.x + .01f ||
+                vertical && p.z >= old.min.z - .01f && p.z <= old.max.z + .01f)) return world;
+            p.x = vertical ? (Mathf.Abs(p.x - old.min.x) < .01f ? minX : maxX) : Mathf.Clamp(p.x, minX, maxX);
+            p.z = horizontal ? (Mathf.Abs(p.z - old.min.z) < .01f ? minZ : maxZ) : Mathf.Clamp(p.z, minZ, maxZ);
+            return root.TransformPoint(p);
+        }
         public IEnumerable<Vector3> BorderPoints(Cell cell, int columns)
         {
             var p = cell.Position; p.y = 0;
-            if (cell.Row == MapBottomRow) yield return root.TransformPoint(new Vector3(p.x, 0, minZ));
+            if (cell.Row == bottomRow) yield return root.TransformPoint(new Vector3(p.x, 0, minZ));
             if (cell.Column == 0) yield return root.TransformPoint(new Vector3(minX, 0, p.z));
             if (cell.Column == columns - 1) yield return root.TransformPoint(new Vector3(maxX, 0, p.z));
             if (cell.Row == 0) yield return root.TransformPoint(new Vector3(p.x, 0, maxZ));
         }
-        public Vector3 BorderPoint(Cell border)
-        {
-            var p = border.Position;
-            if (border.Row == 0) p.z = maxZ;
-            else if (border.Row == MapBottomRow) p.z = minZ;
-            else if (border.Column == 0) p.x = minX;
-            else p.x = maxX;
-            p.y = 0;
-            return root.TransformPoint(p);
-        }
-        // Set from the scene builder/model once, never inferred from runtime positions.
-        public int MapBottomRow { private get; set; }
         private float Parameter(Vector3 world)
         {
             var p = root.InverseTransformPoint(world);
