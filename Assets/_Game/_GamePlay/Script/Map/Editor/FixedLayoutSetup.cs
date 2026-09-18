@@ -43,14 +43,24 @@ namespace ColonyFlow.Gameplay.Editor
             // Freeze the camera against the maximum 20x20 contract, not each level's silhouette.
             view.SetDemoBounds(true);
             camera.orthographic = true;
-            camera.transform.rotation = Quaternion.Euler(90, 0, 0);
-            camera.orthographicSize = 42;
-            camera.transform.position = new Vector3(0, 80, -15.12f);
+            camera.transform.rotation = Quaternion.Euler(45, 0, 0);
+            camera.orthographicSize = 9;
+            camera.transform.position = new Vector3(0, 0, -3.762f) - camera.transform.forward * 80;
             camera.nearClipPlane = .3f;
             camera.farClipPlane = 300;
             camera.clearFlags = CameraClearFlags.SolidColor;
             camera.backgroundColor = Hex("#FFD18E");
             camera.ResetAspect();
+            var light = GameObject.Find("Map Light");
+            if (light == null) light = new GameObject("Map Light", typeof(Light));
+            var key = light.GetComponent<Light>();
+            key.type = LightType.Directional; key.intensity = .85f;
+            key.color = new Color(1, .96f, .88f); key.shadows = LightShadows.None;
+            key.shadowStrength = .2f; key.shadowBias = .03f;
+            light.transform.rotation = Quaternion.Euler(50, -35, 0);
+            RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
+            RenderSettings.ambientLight = new Color(.65f, .65f, .65f);
+            view.ConfigureCellPrefab(GameplayDemoSetup.PrepareRoundedCell());
             view.Clear();
             rounded = CreateRoundedSprite();
             font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
@@ -61,18 +71,15 @@ namespace ColonyFlow.Gameplay.Editor
             background.position = camera.transform.position + camera.transform.forward * 160;
             background.rotation = camera.transform.rotation;
             background.localScale = Vector3.one * (2 * camera.orthographicSize / 1920);
-            Box(background, "Orange Background", Vector2.zero, Vector2.one, Hex("#FFD18E"), false);
-            for (int i = 0; i < 18; i++)
+            Box(background, "Orange Background", Vector2.zero, Vector2.one, Hex("#FFCB85"), false);
+            for (int i = 0; i < 20; i++)
             {
                 float x = ((i * 37) % 100) / 100f;
                 float y = ((i * 23 + 7) % 100) / 100f;
                 var shape = Box(background, $"Background Pattern {i + 1}",
-                    new Vector2(x, y), new Vector2(x + .17f, y + .075f), new Color(1, .92f, .7f, .18f), false);
+                    new Vector2(x, y), new Vector2(x + .17f, y + .075f), new Color(1, .94f, .75f, .16f), false);
                 shape.localRotation = Quaternion.Euler(0, 0, 38);
             }
-            Box(background, "Map Card Shadow", new Vector2(.035f, .491f), new Vector2(.965f, .854f), Hex("#DEAF6E"));
-            var card = Box(background, "Map Card Frame", new Vector2(.035f, .50f), new Vector2(.965f, .862f), Hex("#EBC68B"));
-            InsetBox(card, "Map Card Background", 22, Hex("#F5E9D5"));
 
             var foreground = NewCanvas("Fixed Gameplay Canvas", RenderMode.ScreenSpaceOverlay);
             var scaler = foreground.gameObject.AddComponent<CanvasScaler>();
@@ -80,27 +87,25 @@ namespace ColonyFlow.Gameplay.Editor
             scaler.referenceResolution = new Vector2(1080, 1920);
             scaler.matchWidthOrHeight = 0;
             Region(foreground, "MapArea", new Vector2(.06f, .52f), new Vector2(.94f, .84f));
-            var header = Region(foreground, "Header", new Vector2(0, .875f), Vector2.one);
-            var pause = Card(header, "PauseSlot", new Vector2(.025f, .33f), new Vector2(.10f, .67f), Hex("#657EA6"));
-            Label(pause, "II", 45, Color.white);
-            var badge = Card(header, "BadgeSlot", new Vector2(.17f, .26f), new Vector2(.29f, .76f), Hex("#225B30"));
-            Label(badge, "X", 53, Hex("#9CCD4B"));
-            var level = Region(header, "LevelSlot", new Vector2(.34f, .28f), new Vector2(.70f, .75f));
-            Label(level, "Level 17", 60, Hex("#593716"));
-            var speed = Card(header, "SpeedSlot", new Vector2(.78f, .33f), new Vector2(.97f, .67f), Hex("#BDB9A6"));
-            Label(speed, ">> 2x", 39, Color.white);
+            var header = Region(foreground, "Header", new Vector2(0, .93f), Vector2.one);
+            var pause = Card(header, "PauseSlot", new Vector2(.025f, .22f), new Vector2(.105f, .86f), Hex("#5878A8"));
+            Label(pause, "II", 44, Color.white);
+            var level = Region(header, "LevelSlot", new Vector2(.30f, .28f), new Vector2(.70f, .75f));
+            Label(level, "Level 1", 64, Hex("#5A381A"));
+            var speed = Card(header, "SpeedSlot", new Vector2(.78f, .22f), new Vector2(.97f, .86f), Hex("#C2BEAF"));
+            Label(speed, ">> 2x", 38, Color.white);
             Region(foreground, "GameplayArea", new Vector2(.06f, .39f), new Vector2(.94f, .52f));
-            var footer = Box(foreground, "BottomBar", Vector2.zero, new Vector2(1, .108f), Hex("#6582B9"), false);
-            Box(footer, "Top Line", new Vector2(0, .64f), new Vector2(1, .66f), Hex("#B4B6C2"), false);
-            string[] symbols = { "+", "II", "/" };
+            var footer = Region(foreground, "FooterArea", new Vector2(0, 0), new Vector2(1, .045f));
+            Box(footer, "BottomBar", Vector2.zero, Vector2.one, Hex("#6882AE"), false);
+            Box(footer, "TopLine", new Vector2(0, .96f), Vector2.one, Hex("#AAB8D0"), false);
+            string[] locks = { "Lv.3", "Lv.6", "Lv.9" };
             for (int i = 0; i < 3; i++)
             {
-                float x = .16f + i * .29f;
-                var outer = Box(foreground, $"BoosterSlot {i + 1}", new Vector2(x, .065f),
-                    new Vector2(x + .15f, .133f), Hex("#385996"));
-                var inner = InsetBox(outer, "Gold Rim", 9, Hex("#D7AD67"));
-                inner = InsetBox(inner, "Face", 9, Hex("#9FD2EE"));
-                Label(inner, symbols[i], 72, Hex("#5BA72B"));
+                float x = .175f + i * .25f;
+                var lockOuter = Box(footer, $"LockSlot {i + 1}", new Vector2(x, -.15f),
+                    new Vector2(x + .15f, 1.72f), Hex("#41598C"));
+                var lockInner = InsetBox(lockOuter, "LockFace", 4, Hex("#7D94C2"));
+                Label(lockInner, locks[i], 38, Hex("#FDFDFD"));
             }
             PlayerSettings.defaultScreenWidth = 1080;
             PlayerSettings.defaultScreenHeight = 1920;

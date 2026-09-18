@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -36,6 +36,12 @@ namespace ColonyFlow.Gameplay
             ValidateVector(data.cameraPosition, "cameraPosition");
             ValidateVector(data.cameraRotation, "cameraRotation");
             ValidateVector(data.firstCellPosition, "firstCellPosition");
+            if (data.cellScale != null && (data.cellScale.x != 0 || data.cellScale.y != 0 || data.cellScale.z != 0))
+            {
+                ValidateVector(data.cellScale, "cellScale");
+                if (data.cellScale.x <= 0 || data.cellScale.y <= 0 || data.cellScale.z <= 0)
+                    throw new FormatException("Map cellScale components must be positive.");
+            }
             if (data.cellSpacing == null || !IsFinite(data.cellSpacing.x) ||
                 !IsFinite(data.cellSpacing.z) || data.cellSpacing.x <= 0 || data.cellSpacing.z <= 0)
                 throw new FormatException("Map cellSpacing.x and cellSpacing.z must be finite and positive.");

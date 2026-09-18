@@ -15,6 +15,25 @@ namespace ColonyFlow.Gameplay
         public int ColoredCellCount { get; private set; }
         public Vector3 CameraPosition { get; }
         public Vector3 CameraRotation { get; }
+        public Vector3 CellScale { get; private set; }
+        public Vector2 CellSpacing { get; private set; }
+
+        public void LayoutToCard(Bounds cardBounds, float padding, float heightMultiplier = 1, float topReserve = 0)
+        {
+            float availableWidth = cardBounds.size.x - padding * 2;
+            if (availableWidth <= 0) throw new InvalidOperationException("Card width must exceed map padding.");
+            float cellWidth = Mathf.Min(availableWidth / Columns,
+                (cardBounds.size.z - padding * 2 - topReserve) / Rows);
+            if (cellWidth <= 0) throw new InvalidOperationException("Card height is too small for the map.");
+            float thicknessRatio = CellScale.y / CellScale.x * heightMultiplier;
+            CellSpacing = Vector2.one * cellWidth;
+            CellScale = new Vector3(cellWidth, cellWidth * thicknessRatio, cellWidth);
+            float firstX = cardBounds.center.x - (Columns - 1) * cellWidth * .5f;
+            float firstZ = cardBounds.center.z - topReserve * .5f + (Rows - 1) * cellWidth * .5f;
+            foreach (var cell in EnumerateCells())
+                cell.Position = new Vector3(firstX + cell.Column * cellWidth, 0,
+                    firstZ - cell.Row * cellWidth);
+        }
 
         internal MapModel(MapJsonData data, Dictionary<int, Color> colors)
         {
@@ -22,6 +41,9 @@ namespace ColonyFlow.Gameplay
             Columns = data.columns;
             CameraPosition = data.cameraPosition.ToVector3();
             CameraRotation = data.cameraRotation.ToVector3();
+            CellSpacing = new Vector2(data.cellSpacing.x, data.cellSpacing.z);
+            bool hasCustomScale = data.cellScale != null && data.cellScale.x > 0 && data.cellScale.y > 0 && data.cellScale.z > 0;
+            CellScale = hasCustomScale ? data.cellScale.ToVector3() : new Vector3(data.cellSpacing.x, 0.45f * (data.cellSpacing.x / 1.1f), data.cellSpacing.z);
             palette = new Dictionary<int, Color>(colors);
             cells = new Cell[Rows, Columns];
             var origin = data.firstCellPosition.ToVector3();

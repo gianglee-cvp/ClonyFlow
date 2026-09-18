@@ -19,6 +19,7 @@ namespace ColonyFlow.Gameplay
         [SerializeField] private BoxActor boxPrefab;
         [SerializeField] private AntActor antPrefab;
         [SerializeField] private Transform[] boxAnchors;
+        [SerializeField] private Transform[] antSpawnPoints;
         [SerializeField] private Transform[] perimeterEntries;
         [SerializeField] private Transform[] queueAnchors;
         [SerializeField] private Transform holeReturn;
@@ -29,6 +30,10 @@ namespace ColonyFlow.Gameplay
         [SerializeField] private DemoBoxData[] boxes; // Legacy scene fallback.
         [SerializeField] private float spawnInterval = .22f;
         [SerializeField] private float antSpeed = 8;
+        [SerializeField, Min(.001f)] private float layoutUnit = 1;
+        [SerializeField] private float queueColumnStep = 1.57f;
+        [SerializeField] private float queueRowStep = 1.86f;
+        [SerializeField] private float boxSpawnForwardOffset = .86f;
         private readonly List<List<BoxActor>> queues = new List<List<BoxActor>>();
         private readonly List<AntActor> active = new List<AntActor>();
         private readonly Dictionary<Cell, long> reserves = new Dictionary<Cell, long>();
@@ -56,10 +61,16 @@ namespace ColonyFlow.Gameplay
             Transform returning, Transform jumping, Transform exit, DemoBoxData[] data)
         {
             mapView = map; gameplayCamera = camera; boxPrefab = box; antPrefab = ant;
-            boxAnchors = anchors; perimeterEntries = entries; queueAnchors = queuePoints;
+            boxAnchors = anchors; antSpawnPoints = new Transform[anchors.Length]; perimeterEntries = entries; queueAnchors = queuePoints;
             holeReturn = returning; holeJump = jumping; holeExit = exit; boxes = data;
         }
+        public void ConfigureLayoutUnit(float unit) { layoutUnit = unit; antSpeed = 8 * unit; }
+        public void ConfigureBoxLayout(float columnStep, float rowStep, float spawnOffset)
+        {
+            queueColumnStep = columnStep; queueRowStep = rowStep; boxSpawnForwardOffset = spawnOffset;
+        }
         public void ConfigureCard(Renderer surface) => mapCardSurface = surface;
+        public void SetAntSpawnPoints(Transform[] points) => antSpawnPoints = points;
         public void ConfigureQueues(TextAsset json) => boxQueuesJson = json;
         private void Start() { if (!initialized) Initialize(); }
         public void Initialize()
@@ -122,12 +133,12 @@ namespace ColonyFlow.Gameplay
             for (int q = 0; q < queues.Count; q++)
             {
                 if (queues[q].Count == 0) continue;
-                float x = (visible++ - (nonempty - 1) * .5f) * 5.7f;
+                float x = (visible++ - (nonempty - 1) * .5f) * queueColumnStep;
                 for (int i = 0; i < queues[q].Count; i++)
                 {
                     var point = queueAnchors[q].position;
                     point.x = mapView.Root.position.x + x;
-                    point.z -= i * 4.8f;
+                    point.z -= i * queueRowStep;
                     queues[q][i].transform.position = point;
                     // Keep deep queue rows hidden below the display, without losing their data.
                     queues[q][i].gameObject.SetActive(i < 3);
@@ -160,9 +171,10 @@ namespace ColonyFlow.Gameplay
                     continue;
                 }
                 reserves.Remove(ant.Target);
-                ant.Source.Resolve(true);
+                if (ant.Source != null) ant.Source.Resolve(true);
                 RemainingCellCount--;
-                ant.ConfirmPickup();
+                ant.ConfirmPickup(mapView.GetCellVisualPosition(ant.Target),
+                    Vector3.Scale(mapView.Model.CellScale, mapView.Root.lossyScale));
             }
             if (pickups.Count > 0) navigation.Rebuild();
             for (int i = active.Count - 1; i >= 0; i--)
@@ -246,7 +258,7 @@ namespace ColonyFlow.Gameplay
                     if (!Ready(box) || box.ColorId != best.Target.ColorId) continue;
                     var candidate = navigation.EvaluateFrom(best.Target, perimeter, perimeterEntries[i].position);
                     if (candidate == null) continue;
-                    float distance = Vector3.Distance(Walking(boxAnchors[i].position), Walking(perimeterEntries[i].position))
+                    float distance = Vector3.Distance(SpawnPosition(i), Walking(perimeterEntries[i].position))
                         + candidate.TravelDistance;
                     if (distance < shortest - .0001f) { shortest = distance; index = i; route = candidate; }
                 }
@@ -254,7 +266,15 @@ namespace ColonyFlow.Gameplay
                 Spawn(index, route, route.EntryPoint);
             }
         }
-        private Vector3 Walking(Vector3 point) { point.y = mapView.Root.position.y + .35f; return point; }
+        private Vector3 Walking(Vector3 point) { point.y = mapView.Root.position.y + .35f * layoutUnit; return point; }
+        private Vector3 SpawnPosition(int index)
+        {
+            Transform point = antSpawnPoints != null && index < antSpawnPoints.Length
+                ? antSpawnPoints[index] : null;
+            if (point == null && boxAnchors[index].parent != null)
+                point = boxAnchors[index].parent.Find("AntSpawnPoint");
+            return Walking(point != null ? point.position : boxAnchors[index].position + Vector3.forward * boxSpawnForwardOffset);
+        }
         private void Spawn(int index, TargetCandidate candidate, Vector3 border)
         {
             var box = slots[index];
@@ -273,7 +293,7 @@ namespace ColonyFlow.Gameplay
                 {
                     var target = Walking(mapView.Root.TransformPoint(candidate.Target.Position));
                     var outward = Walking(border) - target;
-                    outbound.Add(target + outward.normalized * 1.1f);
+                    outbound.Add(target + outward.normalized * (1.1f * layoutUnit));
                 }
                 var returning = new List<Vector3>();
                 if (candidate.DirectBorderAccess) returning.Add(outbound[outbound.Count - 1]);
@@ -283,14 +303,21 @@ namespace ColonyFlow.Gameplay
                 foreach (var p in perimeter.Route(border, holeExit.position)) returning.Add(Walking(p));
                 returning.Add(Walking(holeReturn.position));
                 var ant = Instantiate(antPrefab, runtimeRoot, false);
-                ant.Begin(id, box, candidate.Target, Walking(boxAnchors[index].position), outbound,
+                ant.Begin(id, box, candidate.Target, SpawnPosition(index), outbound,
                     returning, holeJump.position, mapView.Model.GetColor(candidate.Target.ColorId));
                 active.Add(ant);
                 box.Timer = 0;
+                if (box.AntCount == 0)
+                {
+                    slots[index] = null;
+                    box.gameObject.SetActive(false);
+                    if (Application.isPlaying) Destroy(box.gameObject);
+                    else DestroyImmediate(box.gameObject);
+                }
             }
             catch
             {
-                box.Resolve(false); reserves.Remove(candidate.Target); throw;
+                if (box != null) box.Resolve(false); reserves.Remove(candidate.Target); throw;
             }
         }
         private bool HasReachableSlotTarget()
@@ -326,7 +353,7 @@ namespace ColonyFlow.Gameplay
             var vp = gameplayCamera.ScreenToViewportPoint(screen);
             if (vp.y > .9f && vp.x < .12f) { TogglePause(); return true; }
             if (vp.y > .9f && vp.x > .77f) { ToggleSpeed(); return true; }
-            if (vp.y <= .11f || vp.y >= .32f) return false;
+            if (vp.y <= .045f || vp.y >= .875f) return false;
             Physics.SyncTransforms();
             if (!Physics.Raycast(gameplayCamera.ScreenPointToRay(screen), out var hit)) return false;
             var actor = hit.collider.GetComponentInParent<BoxActor>();

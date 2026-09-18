@@ -7,7 +7,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: Gameplay-F5E9D5FF
+  m_Name: Gameplay-EBC68BFF
   m_Shader: {fileID: 4800000, guid: 650dd9526735d5b46b79224bc6e94025, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
@@ -118,13 +118,13 @@ Material:
     - _XRMotionVectorsPass: 1
     - _ZWrite: 1
     m_Colors:
-    - _BaseColor: {r: 0.9607843, g: 0.9137255, b: 0.8352941, a: 1}
-    - _Color: {r: 0.96078426, g: 0.9137255, b: 0.8352941, a: 1}
+    - _BaseColor: {r: 0.92156863, g: 0.7764706, b: 0.54509807, a: 1}
+    - _Color: {r: 0.92156863, g: 0.7764706, b: 0.545098, a: 1}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
     - _SpecColor: {r: 0.19999996, g: 0.19999996, b: 0.19999996, a: 1}
   m_BuildTextureStacks: []
   m_AllowLocking: 1
---- !u!114 &7158106682998091820
+--- !u!114 &5117904638891972420
 MonoBehaviour:
   m_ObjectHideFlags: 11
   m_CorrespondingSourceObject: {fileID: 0}

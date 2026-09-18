@@ -10,11 +10,20 @@ namespace ColonyFlow.Gameplay
         [SerializeField] private GameObject cellPrefab;
         [SerializeField] private Camera mapCamera;
         [SerializeField] private Transform mapRoot;
+        [SerializeField] private Renderer mapCardSurface;
+        [SerializeField, Min(0)] private float mapPadding = .35f;
+        [SerializeField, Min(1)] private float cellHeightMultiplier = 2;
+        [SerializeField, Min(0)] private float cellGroundClearance = .2f;
         [SerializeField] private bool loadOnStart = true;
         [SerializeField] private bool enforceDemoBounds;
         private readonly Dictionary<Cell, CellView> cellViews = new Dictionary<Cell, CellView>();
         private GameObject spawnedRoot;
         public Transform Root => mapRoot;
+        public float MapPadding => mapPadding;
+        public void ConfigureCellPrefab(GameObject prefab) => cellPrefab = prefab;
+        public void ConfigureCellSurface(Renderer surface) => mapCardSurface = surface;
+        public Vector3 GetCellVisualPosition(Cell cell) =>
+            cellViews.TryGetValue(cell, out var view) ? view.transform.position : mapRoot.TransformPoint(cell.Position);
         public void SetDemoBounds(bool enabled) => enforceDemoBounds = enabled;
         public bool Collect(Cell cell)
         {
@@ -62,27 +71,29 @@ namespace ColonyFlow.Gameplay
                 mapCamera.transform.IsChildOf(spawnedRoot.transform)))
                 throw new InvalidOperationException("Map root and camera cannot belong to the generated map.");
             CellView.ValidatePrefab(cellPrefab);
-            if (enforceDemoBounds)
+            if (mapCardSurface == null)
+                mapCardSurface = GameObject.Find("MapCard")?.transform.Find("Surface")?.GetComponent<Renderer>();
+            if (mapCardSurface != null)
             {
-                if (nextModel.Rows > 20 || nextModel.Columns > 20)
-                    throw new InvalidOperationException("Fixed portrait demo supports at most 20 rows and 20 columns.");
-                foreach (var cell in nextModel.EnumerateCells())
-                    if (Mathf.Abs(cell.Position.x) > 10.45f + .001f ||
-                        Mathf.Abs(cell.Position.z) > 10.45f + .001f ||
-                        Mathf.Abs(cell.Position.y) > .001f)
-                        throw new InvalidOperationException("Map centers must lie inside the authored +/-10.45 XZ bounds at Y=0.");
-                if (nextModel.Columns > 1 && Mathf.Abs(nextModel.GetCell(0, 1).Position.x -
-                    nextModel.GetCell(0, 0).Position.x - 1.1f) > .001f ||
-                    nextModel.Rows > 1 && Mathf.Abs(nextModel.GetCell(0, 0).Position.z -
-                    nextModel.GetCell(1, 0).Position.z - 1.1f) > .001f)
-                    throw new InvalidOperationException("Fixed portrait demo cell spacing must be 1.1.");
+                var cardBounds = MapPerimeter.CardBounds(mapRoot, mapCardSurface);
+                float maxCellWidth = (cardBounds.size.x - mapPadding * 2) / nextModel.Columns;
+                float maxHeight = maxCellWidth * nextModel.CellScale.y / nextModel.CellScale.x * cellHeightMultiplier;
+                // Reserve screen space for the raised cell tops under the tilted camera.
+                float projectionRatio = Mathf.Abs(Vector3.Dot(mapCamera.transform.up, mapRoot.up) /
+                    Vector3.Dot(mapCamera.transform.up, mapRoot.forward));
+                float topReserve = (cellGroundClearance + maxHeight) * projectionRatio;
+                nextModel.LayoutToCard(cardBounds, mapPadding, cellHeightMultiplier, topReserve);
+                if (enforceDemoBounds && nextModel.Rows * nextModel.CellSpacing.y > cardBounds.size.z - mapPadding * 2 + .001f)
+                    throw new InvalidOperationException("Map height exceeds the card. Apply Fixed Portrait Layout for this JSON.");
             }
-
             // Prepare offscreen; only replace the current map after all cells are ready.
             var nextRoot = new GameObject("Generated Map");
             nextRoot.SetActive(false);
             // JSON positions are local to the fixed map root. Preserve the prefab cell scale.
             nextRoot.transform.SetParent(mapRoot, false);
+            if (mapCardSurface == null)
+                mapCardSurface = GameObject.Find("MapCard")?.transform.Find("Surface")?.GetComponent<Renderer>();
+            float groundTop = mapCardSurface != null ? mapCardSurface.bounds.max.y : mapRoot.position.y;
             int count = 0;
             try
             {
@@ -92,6 +103,22 @@ namespace ColonyFlow.Gameplay
                     var instance = Instantiate(cellPrefab, nextRoot.transform, false);
                     instance.transform.localPosition = cell.Position;
                     instance.transform.localRotation = Quaternion.identity;
+                    instance.transform.localScale = nextModel.CellScale;
+                    // Offset only the visual mesh: grid/navigation positions stay unchanged.
+                    float bottom = float.PositiveInfinity;
+                    foreach (var meshRenderer in instance.GetComponentsInChildren<Renderer>(true))
+                    {
+                        var bounds = meshRenderer.localBounds;
+                        for (int corner = 0; corner < 8; corner++)
+                        {
+                            var point = new Vector3(
+                                (corner & 1) == 0 ? bounds.min.x : bounds.max.x,
+                                (corner & 2) == 0 ? bounds.min.y : bounds.max.y,
+                                (corner & 4) == 0 ? bounds.min.z : bounds.max.z);
+                            bottom = Mathf.Min(bottom, meshRenderer.transform.TransformPoint(point).y);
+                        }
+                    }
+                    instance.transform.position += Vector3.up * (groundTop + cellGroundClearance - bottom);
                     instance.name = $"Cell [{cell.Row},{cell.Column}] Color {cell.ColorId}";
                     instance.SetActive(true);
                     var view = instance.GetComponent<CellView>();

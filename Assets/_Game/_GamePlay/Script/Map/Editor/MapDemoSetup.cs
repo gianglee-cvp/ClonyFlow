@@ -12,7 +12,7 @@ namespace ColonyFlow.Gameplay.Editor
         private const string ScenePath = "Assets/_Game/_GamePlay/Scenes/MapDemo.unity";
         private const string PrefabPath = "Assets/_Game/_GamePlay/Prefabs/MapCell.prefab";
         private const string MaterialPath = "Assets/_Game/_GamePlay/Materials/MapCell.mat";
-        private const string JsonPath = "Assets/_Game/Data/Maps/demo-map.json";
+        private const string JsonPath = "Assets/_Game/Data/Maps/star-map.json";
 
         [MenuItem("ColonyFlow/Map/Open or Create Demo")]
         public static void OpenOrCreateDemo()
@@ -36,7 +36,7 @@ namespace ColonyFlow.Gameplay.Editor
             var material = AssetDatabase.LoadAssetAtPath<Material>(MaterialPath);
             if (material == null)
             {
-                var shader = Shader.Find("Universal Render Pipeline/Lit") ?? Shader.Find("Standard");
+                var shader = Shader.Find("Universal Render Pipeline/Lit");
                 if (shader == null) throw new InvalidOperationException("A Lit shader is required for the demo.");
                 material = new Material(shader) { name = "MapCell" };
                 AssetDatabase.CreateAsset(material, MaterialPath);

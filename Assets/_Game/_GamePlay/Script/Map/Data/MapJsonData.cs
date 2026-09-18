@@ -12,6 +12,7 @@ namespace ColonyFlow.Gameplay
         public MapVectorData cameraRotation;
         public MapVectorData firstCellPosition;
         public MapSpacingData cellSpacing;
+        public MapVectorData cellScale;
         public MapPaletteEntry[] palette;
         public int[] cells;
     }
