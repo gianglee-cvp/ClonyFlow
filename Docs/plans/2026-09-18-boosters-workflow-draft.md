@@ -1,6 +1,6 @@
 # Booster và quy trình phát triển — plan đã duyệt
 
-Trạng thái: hoàn thành implementation và verification theo thiết kế user đã duyệt. Baseline pooling, deadlock, rule/skill, Thêm Slot và Pickup đã được test/review/commit riêng. Thổi và UI đã đạt checkpoint cuối, sẵn sàng commit phần này.
+Trạng thái: hoàn thành implementation, verification và commit theo thiết kế user đã duyệt. Thêm Slot (`9a1583e`), Pickup (`d203f57`), Thổi/UI (`9d93872`) đã được test/review/commit riêng.
 
 ## Câu trả lời đã chốt
 
@@ -56,3 +56,9 @@ Gameplay giữ Map/Data cho schema; Map/Ant cho actor/navigation hiện có; Map
 Checkpoint đã xác minh: baseline deadlock 65 smoke; Thêm Slot 80 smoke; Pickup 98 smoke; transaction Thổi 113 smoke, đều không lỗi. Test đỏ đã được quan sát cho API chưa có trước từng phần. Agent review phát hiện fixture kind bị lặp; fixture đã sửa. Test pointer cần Physics.SyncTransforms trước khi lấy bounds của collider vừa reuse. Test tích hợp cũng phát hiện panel UI cố định 108 pixel chặn box giữa trên headless screen 640x480 (pointer y=93.09); UI và vùng input nay dùng cùng hệ số scale.
 
 Verification cuối: **125 PlayMode smoke checks, 0 failures; 10 asset tests đạt; diff check sạch**. Bao phủ đầy slot/deadlock/slot thứ năm, pause, Pickup theo identity/collider/kind, pooling reset, Thổi ở bốn trip states, slot/queue/pending budgets, reservations, màu khác, repeated calls, palette/selection, completion và restart. Agent read-only review từng phần và tích hợp cuối không còn finding cần sửa. Chưa tích hợp gameplay riêng của Hidden/Stick, inventory hoặc tiêu hao vật phẩm theo scope đã chốt.
+
+## Follow-up: Thêm Slot và session sau script reload
+
+Scene đã lưu thêm được slot thứ năm khi test không dựng lại layout. Log Editor thực tế có NullReference ở `AntGameplay.Advance` khi navigation không còn nhưng initialized vẫn true. Lifecycle cũ không cleanup trước reload hoặc rebuild khi enable. Regression mới đã quan sát test đỏ rồi kiểm chứng sửa: disable phục hồi seed layout, giải phóng map/session/pool; enable rebuild hoặc đợi Map active; Model mới reset WIN; input/UI/booster chỉ dùng session hợp lệ, stale palette được clear. Button/API dùng chung `CanAddSlot` để không trình bày action bấm được nhưng thiếu references. Agent review hai vòng phát hiện startup deferred và stale GUI/input; đã sửa.
+
+Kết quả follow-up: **135 smoke checks, 0 failures; 10 asset tests pass; diff check sạch**. Bao phủ saved scene, cả hai thứ tự enable, Map disable riêng, GUI early return khi Model null, slot sau WIN/restart và toàn bộ regression gameplay trước đó.

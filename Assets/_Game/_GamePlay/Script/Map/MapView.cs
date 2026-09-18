@@ -39,6 +39,18 @@ namespace ColonyFlow.Gameplay
             if (loadOnStart && Model == null) LoadMap();
         }
 
+        private void OnEnable()
+        {
+            if (Application.isPlaying && loadOnStart && Model == null) LoadMap();
+        }
+
+        private void OnDisable()
+        {
+            Clear();
+            pool?.Dispose();
+            pool = null;
+        }
+
         [ContextMenu("Load Level JSON")]
         public bool LoadMap() => mapJson != null && LoadJson(mapJson.text);
 

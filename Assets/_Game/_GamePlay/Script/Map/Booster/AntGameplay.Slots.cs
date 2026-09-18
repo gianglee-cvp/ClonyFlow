@@ -10,12 +10,13 @@ namespace ColonyFlow.Gameplay
         private Vector3[] originalSurfacePositions;
         private Renderer extraSlotSurface;
         public bool HasAddedSlot => originalSlotPoints != null;
+        public bool CanAddSlot => CanUseBooster() && !HasAddedSlot &&
+            boxAnchors.Length >= 2 && slotSurfaces != null && slotSurfaces.Length == boxAnchors.Length &&
+            Array.TrueForAll(slotSurfaces, surface => surface != null);
 
         public bool AddSlot()
         {
-            if (!initialized || Paused || IsBoardCleared || HasAddedSlot || boxAnchors.Length < 2 ||
-                slotSurfaces == null || slotSurfaces.Length != boxAnchors.Length ||
-                !Array.TrueForAll(slotSurfaces, surface => surface != null)) return false;
+            if (!CanAddSlot) return false;
             CaptureSlotLayout();
             var step = boxAnchors[1].position - boxAnchors[0].position;
             boxAnchors = ExpandSlotPoints(boxAnchors, step, "BoxAnchor");

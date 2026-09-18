@@ -78,6 +78,8 @@ Core tại [Assets/_Core/Pooling](../Assets/_Core/Pooling/README.md), độc l�
 
 Scene phải gán `Slot Surfaces` theo thứ tự slot. Editor setup tạo sẵn các references này; runtime không tìm component trong child/parent.
 
+`CanAddSlot` dùng cùng điều kiện cho button và API. Khi disable/reload script, gameplay phục hồi layout gốc và giải phóng session/pool; enable tạo lại session bốn slot và lượt dùng. Game đợi Map được enable trước khi khởi tạo. Map thay đổi sau WIN sẽ reset trạng thái hoàn thành; UI/input/selection bị chặn khi session chưa hợp lệ. Test kiểm tra cả scene đã lưu, không chỉ scene do Editor setup dựng lại.
+
 ## Booster Pickup
 
 `BeginPickupSelection()` bật chế độ chọn box; `CancelBoosterSelection()` hủy. `PickupBox(box)` chọn một box Normal trong ba hàng queue đang hiển thị, cần slot trống. Có thể chọn box giữa/cuối; box được lấy đúng theo identity, queue dồn bằng tween. Chọn thành công hoặc Restart sẽ hủy selection. Pause và board đã clear không cho dùng booster.

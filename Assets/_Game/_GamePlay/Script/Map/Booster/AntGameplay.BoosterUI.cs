@@ -31,7 +31,7 @@ namespace ColonyFlow.Gameplay
         {
             float width = (UIWidth - 48) / 3f;
             float y = UIHeight - 66;
-            DrawBoosterButton(new Rect(12, y, width, 28), "Add Slot", CanUseBooster() && !HasAddedSlot, () => AddSlot());
+            DrawBoosterButton(new Rect(12, y, width, 28), "Add Slot", CanAddSlot, () => AddSlot());
             DrawBoosterButton(new Rect(24 + width, y, width, 28), "Pickup", CanUseBooster() && Array.Exists(slots, box => box == null), () => BeginPickupSelection());
             DrawBoosterButton(new Rect(36 + width * 2, y, width, 28), "Blow", CanUseBooster(), () => BeginBlowSelection());
             DrawBoosterSelection();

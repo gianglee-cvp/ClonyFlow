@@ -42,6 +42,9 @@ namespace ColonyFlow.Gameplay
         private Bounds cardBounds;
         private long nextTaskId;
         private bool initialized;
+        private bool initializeWhenMapEnabled;
+        private bool HasCurrentSession => initialized && mapView != null && mapView.isActiveAndEnabled &&
+            mapView.Model != null && navigation != null && navigation.Map == mapView.Model && pool != null;
         public bool IsBoardCleared { get; private set; }
         public bool IsLevelComplete { get; private set; }
         public bool IsDeadlocked { get; private set; }
@@ -87,12 +90,31 @@ namespace ColonyFlow.Gameplay
 
         private void Start()
         {
-            if (!initialized) Initialize();
+            if (!initialized && !initializeWhenMapEnabled) Initialize();
+        }
+
+        private void OnEnable()
+        {
+            if (!Application.isPlaying) return;
+            if (mapView != null && mapView.isActiveAndEnabled) Initialize();
+            else initializeWhenMapEnabled = true;
+        }
+
+        private void OnDisable()
+        {
+            Cleanup();
+            pool?.Dispose();
+            pool = null;
         }
 
         public bool Initialize()
         {
             Cleanup();
+            if (Application.isPlaying && mapView != null && !mapView.isActiveAndEnabled)
+            {
+                initializeWhenMapEnabled = true;
+                return false;
+            }
             if (Application.isPlaying && !TweenRuntime.Initialize(new TweenSettings())) return false;
             if (!HasReferences()) return false;
             if (mapView.Model == null && !mapView.LoadMap()) return false;
@@ -192,7 +214,7 @@ namespace ColonyFlow.Gameplay
         }
 
         private bool CanPickQueue(int index) =>
-            initialized && !Paused && !IsBoardCleared && !IsDeadlocked &&
+            HasCurrentSession && !Paused && !IsBoardCleared && !IsDeadlocked &&
             index >= 0 && index < queues.Count && queues[index].Count > 0;
 
         private void MoveBoxToSlot(int queueIndex, int boxIndex, int slot)
@@ -237,8 +259,18 @@ namespace ColonyFlow.Gameplay
 
         public void Advance(float delta)
         {
-            if (!initialized || Paused || IsLevelComplete || delta <= 0) return;
-            if (navigation.Map != mapView.Model) { Initialize(); return; }
+            if (initializeWhenMapEnabled && mapView != null && mapView.isActiveAndEnabled)
+            {
+                initializeWhenMapEnabled = false;
+                Initialize();
+            }
+            if (!initialized || !mapView.isActiveAndEnabled)
+            {
+                CancelBoosterSelection();
+                return;
+            }
+            if (navigation == null || navigation.Map != mapView.Model) { Initialize(); return; }
+            if (Paused || IsLevelComplete || delta <= 0) return;
             RefreshCardPerimeter();
             float dt = delta * SpeedMultiplier;
             AdvanceQueues(dt);
@@ -520,7 +552,11 @@ namespace ColonyFlow.Gameplay
 
         private void OnGUI()
         {
-            if (!initialized) return;
+            if (!HasCurrentSession)
+            {
+                CancelBoosterSelection();
+                return;
+            }
             HandleGUIEvent();
             var matrix = GUI.matrix;
             GUI.matrix = matrix * Matrix4x4.Scale(new Vector3(GameplayUIScale, GameplayUIScale, 1));
@@ -548,7 +584,7 @@ namespace ColonyFlow.Gameplay
 
         public bool HandlePointer(Vector2 screen)
         {
-            if (!initialized) return false;
+            if (!HasCurrentSession) return false;
             var vp = gameplayCamera.ScreenToViewportPoint(screen);
             if (vp.y > .9f && vp.x < .12f) { TogglePause(); return true; }
             if (vp.y > .9f && vp.x > .77f) { ToggleSpeed(); return true; }
@@ -570,6 +606,7 @@ namespace ColonyFlow.Gameplay
         private void Cleanup()
         {
             initialized = false;
+            initializeWhenMapEnabled = false;
             CancelBoosterSelection();
             RecycleSession();
             queues.Clear();

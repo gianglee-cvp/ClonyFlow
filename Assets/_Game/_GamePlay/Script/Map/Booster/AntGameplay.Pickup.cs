@@ -22,7 +22,7 @@ namespace ColonyFlow.Gameplay
             blowColors.Clear();
         }
 
-        private bool CanUseBooster() => initialized && !Paused && !IsBoardCleared;
+        private bool CanUseBooster() => HasCurrentSession && !Paused && !IsBoardCleared;
 
         public bool PickupBox(BoxActor box)
         {

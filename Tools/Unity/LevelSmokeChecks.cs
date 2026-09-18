@@ -16,6 +16,11 @@ public static class LevelSmokeChecks
     public static void Run()
     {
         EditorSceneManager.OpenScene("Assets/_Game/_GamePlay/Scenes/MapDemo.unity");
+        var savedMap = Object.FindFirstObjectByType<MapView>();
+        var savedGame = Object.FindFirstObjectByType<AntGameplay>();
+        bool savedSlotWorks = savedMap != null && savedGame != null && savedMap.LoadMap() && savedGame.Initialize() && savedGame.AddSlot() && savedGame.Slots.Count == 5;
+        SessionState.SetBool("LevelSmoke.SavedSlot", savedSlotWorks);
+        if (savedGame != null) savedGame.Restart();
         ColonyFlow.Gameplay.Editor.FixedLayoutSetup.Apply();
         var editorMap = Object.FindFirstObjectByType<MapView>();
         var editorGame = Object.FindFirstObjectByType<AntGameplay>();
@@ -47,6 +52,7 @@ public static class LevelSmokeChecks
         map = Object.FindFirstObjectByType<MapView>();
         game = Object.FindFirstObjectByType<AntGameplay>();
         Check("scene components", map != null && game != null);
+        Check("saved scene adds fifth slot without Editor rebuild", SessionState.GetBool("LevelSmoke.SavedSlot", false));
         Check("Editor rebuild writes complete references", SessionState.GetBool("LevelSmoke.EditorReferences", false));
         if (map == null || game == null) { Finish(); return; }
         var data = JsonUtility.FromJson<MapJsonData>(File.ReadAllText("Assets/_Game/Data/Maps/map1.json"));
@@ -67,6 +73,7 @@ public static class LevelSmokeChecks
         game.Restart();
         TestBentRoute();
         BoosterSmokeChecks.RunSlots(map, game, Check);
+        TestSessionReload();
         BoosterSmokeChecks.RunPickup(map, game, Check);
         BoosterSmokeChecks.RunBlow(map, game, Check);
         BoosterSmokeChecks.RunSelection(map, game, Check);
@@ -349,6 +356,36 @@ public static class LevelSmokeChecks
         data.queues = new BoxQueueData[0];
         map.LoadJson(JsonUtility.ToJson(data)); game.Initialize(); game.Advance(.01f);
         Check("exhausted supply reports deadlock with empty slots", game.IsDeadlocked && !game.IsLevelComplete);
+    }
+
+    private static void TestSessionReload()
+    {
+        game.Restart(); game.AddSlot(); game.PickQueue(0); game.Advance(.01f);
+        game.enabled = false;
+        Check("disable clears runtime session before script reload", game.Navigation == null && game.Slots == null && !game.HasAddedSlot && game.ActiveTripCount == 0);
+        map.enabled = false;
+        Check("disable clears map before script reload", map.Model == null && map.SpawnedCellCount == 0);
+        map.enabled = true; game.enabled = true;
+        Check("enable rebuilds usable four-slot session", game.Navigation != null && game.Slots != null && game.Slots.Count == 4 && game.RemainingCellCount == 676 && game.AddSlot());
+        game.Restart();
+        game.enabled = false; map.enabled = false; game.enabled = true;
+        typeof(AntGameplay).GetMethod("Start", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(game, null);
+        game.Advance(.01f);
+        Check("game waits for disabled map during reverse enable order", map.Model == null && game.Navigation == null && !game.CanAddSlot);
+        map.enabled = true; game.Advance(.01f);
+        Check("reverse enable order restores Add Slot", game.Navigation != null && game.Slots.Count == 4 && game.AddSlot());
+        game.Restart(); game.BeginBlowSelection(); map.enabled = false; game.Advance(.01f);
+        Check("map disable clears stale palette and ordinary input", !game.IsSelectingBlow && game.AvailableBlowColors.Count == 0 && !game.PickQueue(0) && !game.HandlePointer(Vector2.zero));
+        // Invalid-session GUI must return before touching IMGUI or the cleared Model.
+        typeof(AntGameplay).GetMethod("OnGUI", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(game, null);
+        Check("disabled map rejects booster selection", map.Model == null && !game.CanAddSlot && !game.BeginPickupSelection() && !game.BeginBlowSelection());
+        map.enabled = true; game.Advance(.01f);
+        Check("map reenable restores usable session", game.Navigation.Map == map.Model && game.Slots.Count == 4 && game.AddSlot());
+        game.Restart();
+        map.LoadJson(Json(1, 1, new[] { 1 }, 1)); game.Initialize(); game.BlowColor(1);
+        map.enabled = false; map.enabled = true; game.Advance(.01f);
+        Check("map replacement after WIN resets completion and Add Slot", !game.IsLevelComplete && game.RemainingCellCount == 676 && game.Navigation.Map == map.Model && game.AddSlot());
+        game.Restart();
     }
 
     private static void Finish()
