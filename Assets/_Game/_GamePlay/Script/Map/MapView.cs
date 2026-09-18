@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using ColonyFlow.Core.Pooling;
 
 namespace ColonyFlow.Gameplay
 {
@@ -16,6 +17,8 @@ namespace ColonyFlow.Gameplay
         [SerializeField] private bool loadOnStart = true;
         private readonly Dictionary<Cell, CellView> cellViews = new Dictionary<Cell, CellView>();
         private GameObject spawnedRoot;
+        private ObjectPoolManager pool;
+        private readonly Dictionary<Cell, Vector3> collectedPositions = new Dictionary<Cell, Vector3>();
         public Transform Root => mapRoot;
         public MapModel Model { get; private set; }
         public int SpawnedCellCount => cellViews.Count;
@@ -45,6 +48,8 @@ namespace ColonyFlow.Gameplay
             var model = MapJsonLoader.Load(json);
             if (model == null || !FitToCard(model)) return false;
             Clear();
+            if (pool == null) pool = new ObjectPoolManager(transform);
+            pool.Load(cellPrefab, model.ColoredCellCount);
             Model = model;
             CreateMapRoot();
             SpawnCells();
@@ -80,7 +85,7 @@ namespace ColonyFlow.Gameplay
 
         private void SpawnCell(Cell cell, float groundTop)
         {
-            var view = Instantiate(cellPrefab, spawnedRoot.transform, false);
+            var view = pool.Spawn(cellPrefab, parent: spawnedRoot.transform, spawnInWorldSpace: false);
             view.transform.localPosition = cell.Position;
             view.transform.localRotation = Quaternion.identity;
             view.transform.localScale = Model.CellScale;
@@ -91,20 +96,26 @@ namespace ColonyFlow.Gameplay
             cellViews.Add(cell, view);
         }
 
-        public Vector3 GetCellVisualPosition(Cell cell) => cellViews[cell].transform.position;
+        public Vector3 GetCellVisualPosition(Cell cell) => cellViews.TryGetValue(cell, out var view)
+            ? view.transform.position : collectedPositions[cell];
 
         public bool Collect(Cell cell)
         {
             if (Model == null || !Model.TryCollect(cell)) return false;
-            cellViews[cell].gameObject.SetActive(false);
+            var view = cellViews[cell];
+            collectedPositions[cell] = view.transform.position;
+            cellViews.Remove(cell);
+            pool.Recycle(view);
             return true;
         }
 
         [ContextMenu("Clear Map")]
         public void Clear()
         {
+            foreach (var view in cellViews.Values) pool?.Recycle(view);
             DisposeRoot();
             cellViews.Clear();
+            collectedPositions.Clear();
             Model = null;
         }
 
@@ -117,6 +128,10 @@ namespace ColonyFlow.Gameplay
             spawnedRoot = null;
         }
 
-        private void OnDestroy() => Clear();
+        private void OnDestroy()
+        {
+            Clear();
+            pool?.Dispose();
+        }
     }
 }

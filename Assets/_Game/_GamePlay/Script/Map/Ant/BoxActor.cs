@@ -1,10 +1,11 @@
 using UnityEngine;
 using UnityEngine.UI;
 using DG.Tweening;
+using ColonyFlow.Core.Pooling;
 
 namespace ColonyFlow.Gameplay
 {
-    public sealed class BoxActor : MonoBehaviour
+    public sealed class BoxActor : MonoBehaviour, IPoolable
     {
         [SerializeField] private Text countLabel;
         [SerializeField] private Renderer face;
@@ -24,6 +25,23 @@ namespace ColonyFlow.Gameplay
         public int SlotIndex { get; internal set; } = -1;
         public float Timer { get; internal set; }
         public Collider HitCollider => hitCollider;
+
+        public void OnPoolSpawned()
+        {
+            if (animation == null) animation = new ActorAnimation(gameObject);
+            ResetBox();
+        }
+
+        public void OnPoolRecycled() => ResetBox();
+        private void ResetBox()
+        {
+            animation?.Cancel();
+            IsLanding = false;
+            ColorId = AntCount = OutgoingCount = 0;
+            QueueIndex = SlotIndex = -1;
+            Timer = 0;
+            RefreshLabel();
+        }
 
         public void Configure(Text label, Renderer renderer, RectTransform canvas, Collider collider, Renderer[] body)
         {

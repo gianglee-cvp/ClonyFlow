@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 using ColonyFlow.Core.Tweening;
+using ColonyFlow.Core.Pooling;
 
 namespace ColonyFlow.Gameplay
 {
@@ -31,6 +32,8 @@ namespace ColonyFlow.Gameplay
         private readonly Dictionary<Cell, long> reserves = new Dictionary<Cell, long>();
         private readonly Dictionary<Collider, BoxActor> colliderBoxes = new Dictionary<Collider, BoxActor>();
         private readonly List<AntActor> pickups = new List<AntActor>();
+        private readonly List<BoxActor> pendingBoxes = new List<BoxActor>();
+        private ObjectPoolManager pool;
         private BoxActor[] slots;
         private Transform runtimeRoot;
         private GridNavigation navigation;
@@ -92,6 +95,7 @@ namespace ColonyFlow.Gameplay
             if (!HasReferences()) return false;
             if (mapView.Model == null && !mapView.LoadMap()) return false;
             if (mapView.Model.Queues.Count > queueAnchors.Length) return false;
+            PreparePools();
             navigation = new GridNavigation(mapView.Model);
             CreatePerimeter();
             CreateRuntimeRoot();
@@ -99,6 +103,15 @@ namespace ColonyFlow.Gameplay
             RefreshQueues();
             ResetSession();
             return true;
+        }
+
+        private void PreparePools()
+        {
+            if (pool == null) pool = new ObjectPoolManager(transform);
+            pool.Load(antPrefab, 32);
+            int count = 0;
+            foreach (var queue in mapView.Model.Queues) count += queue.boxes.Length;
+            pool.Load(boxPrefab, count);
         }
 
         private bool HasReferences() =>
@@ -142,7 +155,7 @@ namespace ColonyFlow.Gameplay
 
         private BoxActor CreateBox(int queueIndex, BoxData data)
         {
-            var box = Instantiate(boxPrefab, runtimeRoot, false);
+            var box = pool.Spawn(boxPrefab, parent: runtimeRoot, spawnInWorldSpace: false);
             box.Initialize(data.colorId, data.antCount, queueIndex, mapView.Model.GetColor(data.colorId), gameplayCamera);
             colliderBoxes.Add(box.HitCollider, box);
             return box;
@@ -231,6 +244,7 @@ namespace ColonyFlow.Gameplay
             ResolvePickups();
             RemoveFinishedAnts();
             AdvanceSlots(dt);
+            ResolvePendingBoxes();
             if (RemainingCellCount > 0) DispatchReadyBoxes();
             RefreshLevelState();
         }
@@ -270,6 +284,7 @@ namespace ColonyFlow.Gameplay
             }
             reserves.Remove(ant.Target);
             if (ant.Source != null) ant.Source.Resolve(true);
+            ant.DetachSource();
             ant.ConfirmPickup(mapView.GetCellVisualPosition(ant.Target),
                 Vector3.Scale(mapView.Model.CellScale, mapView.Root.lossyScale));
         }
@@ -288,7 +303,7 @@ namespace ColonyFlow.Gameplay
                 if (active[i].State != AntTripState.Inactive) continue;
                 var finished = active[i];
                 active.RemoveAt(i);
-                DisposeObject(finished.gameObject);
+                pool.Recycle(finished);
             }
         }
 
@@ -390,7 +405,7 @@ namespace ColonyFlow.Gameplay
             var interior = navigation.BuildInteriorRoute(candidate);
             var outbound = BuildOutbound(index, candidate, interior);
             var returning = BuildReturn(candidate, interior, outbound[outbound.Count - 1]);
-            var ant = Instantiate(antPrefab, runtimeRoot, false);
+            var ant = pool.Spawn(antPrefab, parent: runtimeRoot, spawnInWorldSpace: false);
             ant.Begin(id, box, candidate.Target, SpawnPosition(index), outbound, returning,
                 holeJump.position, mapView.Model.GetColor(candidate.Target.ColorId));
             active.Add(ant);
@@ -449,7 +464,34 @@ namespace ColonyFlow.Gameplay
             var box = slots[index];
             slots[index] = null;
             colliderBoxes.Remove(box.HitCollider);
-            DisposeObject(box.gameObject);
+            box.SlotIndex = -1;
+            box.gameObject.SetActive(false);
+            pendingBoxes.Add(box);
+        }
+
+        private void ResolvePendingBoxes()
+        {
+            for (int i = pendingBoxes.Count - 1; i >= 0; i--)
+            {
+                var box = pendingBoxes[i];
+                if (box.AntCount > 0)
+                {
+                    int slot = Array.FindIndex(slots, b => b == null);
+                    if (slot < 0) continue;
+                    pendingBoxes.RemoveAt(i);
+                    box.SlotIndex = slot;
+                    box.Timer = spawnInterval;
+                    slots[slot] = box;
+                    colliderBoxes.Add(box.HitCollider, box);
+                    box.gameObject.SetActive(true);
+                    box.JumpToSlot(boxAnchors[slot].position, layoutUnit);
+                }
+                else if (box.OutgoingCount == 0)
+                {
+                    pendingBoxes.RemoveAt(i);
+                    pool.Recycle(box);
+                }
+            }
         }
 
         private bool HasReachableSlotTarget()
@@ -511,16 +553,27 @@ namespace ColonyFlow.Gameplay
         private void Cleanup()
         {
             initialized = false;
+            RecycleSession();
             queues.Clear();
             active.Clear();
             reserves.Clear();
             colliderBoxes.Clear();
             pickups.Clear();
+            pendingBoxes.Clear();
             if (runtimeRoot != null) DisposeObject(runtimeRoot.gameObject);
             runtimeRoot = null;
             slots = null;
             navigation = null;
             perimeter = null;
+        }
+
+        private void RecycleSession()
+        {
+            if (pool == null) return;
+            foreach (var ant in active) pool.Recycle(ant);
+            foreach (var queue in queues) foreach (var box in queue) pool.Recycle(box);
+            if (slots != null) foreach (var box in slots) pool.Recycle(box);
+            foreach (var box in pendingBoxes) pool.Recycle(box);
         }
 
         private static void DisposeObject(GameObject obj)
@@ -530,6 +583,10 @@ namespace ColonyFlow.Gameplay
             else DestroyImmediate(obj);
         }
 
-        private void OnDestroy() => Cleanup();
+        private void OnDestroy()
+        {
+            Cleanup();
+            pool?.Dispose();
+        }
     }
 }

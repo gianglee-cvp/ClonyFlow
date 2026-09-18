@@ -49,7 +49,18 @@ Dùng menu component **Load Level JSON**, **Clear Map**, **Restart Level**, ho�
 - Chọn cặp hộp–viên theo tổng quãng đường đi từ điểm spawn. Khoảng cách bằng nhau giữ thứ tự hàng, cột rồi slot.
 - Viên đã được kiến đặt trước không được giao lại. Thu thập cập nhật khả năng tiếp cận và xóa cache đường đi.
 - Renderer/canvas/collider được gán sẵn; không tìm component qua children/parent. Click tra hộp bằng collider đã đăng ký.
-- Hiện dùng Instantiate/Destroy. Pause và x2 do gameplay quản lý; không phụ thuộc Time.timeScale.
+- Kiến, box và cell dùng `ColonyFlow.Core.Pooling`; manager giữ pool qua restart và dispose khi owner bị destroy. Pause và x2 do gameplay quản lý; không phụ thuộc Time.timeScale.
+
+## Pooling
+
+Core tại [Assets/_Core/Pooling](../Assets/_Core/Pooling/README.md), độc lập Tween/gameplay. Mỗi thư mục Core có MD mô tả trách nhiệm.
+
+- `Load(count)` preload số available tối thiểu; spawn tự tăng nếu hết. `Recycle` tự deactivate/reset, trả false khi trùng hoặc instance lạ.
+- Kiến preload 32, tăng theo nhu cầu; khi recycle hủy tween và xóa task/source/target/carried visual, khôi phục scale để dùng lại sau cú nhảy về 0.
+- Box được preload theo JSON. Hết budget sẽ rời slot nhưng chờ `OutgoingCount == 0` trước khi recycle; pickup lỗi hoàn budget và box pending quay lại slot trống.
+- Cell lưu vị trí visual trước khi recycle khi Collect; `GetCellVisualPosition` vẫn trả đúng điểm để kiến nhặt viên. Reload dùng lại instance và gán model/color/scale mới.
+- Component root được cache khi tạo instance; không gọi lại GetComponent mỗi lần spawn và không tìm hierarchy.
+- Cleanup/restart trả actor về pool trước khi hủy root session; pool root được giữ riêng.
 
 ## Animation bằng Core Tween
 

@@ -1,14 +1,17 @@
 using UnityEngine;
+using ColonyFlow.Core.Pooling;
 
 namespace ColonyFlow.Gameplay
 {
-    public sealed class CellView : MonoBehaviour
+    public sealed class CellView : MonoBehaviour, IPoolable
     {
         [SerializeField] private Renderer[] renderers;
         private MaterialPropertyBlock propertyBlock;
         private static readonly int BaseColor = Shader.PropertyToID("_BaseColor");
         private static readonly int ColorProperty = Shader.PropertyToID("_Color");
         public Cell Cell { get; private set; }
+        public void OnPoolSpawned() => Cell = null;
+        public void OnPoolRecycled() => Cell = null;
 
         public void Configure(Renderer[] targets) => renderers = targets;
 

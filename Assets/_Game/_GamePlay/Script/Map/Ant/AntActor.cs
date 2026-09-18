@@ -1,12 +1,13 @@
 using System.Collections.Generic;
 using UnityEngine;
 using DG.Tweening;
+using ColonyFlow.Core.Pooling;
 
 namespace ColonyFlow.Gameplay
 {
     public enum AntTripState { Inactive, Outbound, WaitingPickup, Returning, Jumping }
 
-    public sealed class AntActor : MonoBehaviour
+    public sealed class AntActor : MonoBehaviour, IPoolable
     {
         [SerializeField] private GameObject carriedBrick;
         [SerializeField] private Renderer carriedRenderer;
@@ -32,9 +33,40 @@ namespace ColonyFlow.Gameplay
 
         private void Awake()
         {
+            EnsureCachedState();
+        }
+
+        private void EnsureCachedState()
+        {
+            if (animation != null) return;
             initialScale = transform.localScale;
             animation = new ActorAnimation(gameObject);
             CacheCarryTransforms();
+        }
+
+        public void OnPoolSpawned()
+        {
+            EnsureCachedState();
+            ResetTrip();
+        }
+
+        public void OnPoolRecycled() => ResetTrip();
+        public void DetachSource() => Source = null;
+
+        private void ResetTrip()
+        {
+            animation?.Cancel();
+            TaskId = 0;
+            Source = null;
+            Target = null;
+            route = null;
+            returnRoute = null;
+            waypoint = 0;
+            pickupTime = .2f;
+            State = AntTripState.Inactive;
+            transform.localScale = initialScale;
+            if (carriedBrick != null) carriedBrick.SetActive(false);
+            if (carriedTransform != null) carriedTransform.localPosition = carryLocalPosition;
         }
 
         public void Configure(Renderer brick, Renderer body)
