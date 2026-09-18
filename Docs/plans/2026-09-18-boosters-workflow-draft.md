@@ -62,3 +62,11 @@ Verification cuối: **125 PlayMode smoke checks, 0 failures; 10 asset tests đ�
 Scene đã lưu thêm được slot thứ năm khi test không dựng lại layout. Log Editor thực tế có NullReference ở `AntGameplay.Advance` khi navigation không còn nhưng initialized vẫn true. Lifecycle cũ không cleanup trước reload hoặc rebuild khi enable. Regression mới đã quan sát test đỏ rồi kiểm chứng sửa: disable phục hồi seed layout, giải phóng map/session/pool; enable rebuild hoặc đợi Map active; Model mới reset WIN; input/UI/booster chỉ dùng session hợp lệ, stale palette được clear. Button/API dùng chung `CanAddSlot` để không trình bày action bấm được nhưng thiếu references. Agent review hai vòng phát hiện startup deferred và stale GUI/input; đã sửa.
 
 Kết quả follow-up: **135 smoke checks, 0 failures; 10 asset tests pass; diff check sạch**. Bao phủ saved scene, cả hai thứ tự enable, Map disable riêng, GUI early return khi Model null, slot sau WIN/restart và toàn bộ regression gameplay trước đó.
+
+## Follow-up: click booster và scene đang mở
+
+Screenshot cho thấy footer khóa placeholder chồng lên booster. Nút Add Slot còn phụ thuộc field `Slot Surfaces` mới: scene đã mở trước khi thêm field có thể giữ references rỗng dù YAML trên đĩa đã được cập nhật. Đã quan sát hai test đỏ: click vị trí Add Slot không tạo slot và scene thiếu field không thể dùng action.
+
+Sửa: draw/hit-test dùng chung Rect; handler nhận Event rõ ràng, xử lý raw MouseDown chưa Used, consume press đã xử lý. MouseUp không gọi lại action. Editor migration một lần khi reload/chuyển Play Mode phục hồi references từ slot seed đã author; runtime không tìm hierarchy. Bỏ ba LockSlot khỏi scene và factory; migration dọn footer cũ trong scene đang mở. Chữ nút giữ 12 pixel qua UI scale.
+
+Verification: **143 smoke checks, 0 failures; 10 asset tests pass; diff check sạch; agent review không còn finding**. Test dùng screen click cho Add Slot/Pickup/Cancel/Blow/palette và Event được truyền vào handler cho MouseDown/MouseUp; không phải kiểm tra render trực tiếp Game View.

@@ -115,15 +115,6 @@ namespace ColonyFlow.Gameplay.Editor
             var footer = Region(foreground, "FooterArea", new Vector2(0, 0), new Vector2(1, .045f));
             Box(footer, "BottomBar", Vector2.zero, Vector2.one, Hex("#6882AE"), false);
             Box(footer, "TopLine", new Vector2(0, .96f), Vector2.one, Hex("#AAB8D0"), false);
-            string[] locks = { "Lv.3", "Lv.6", "Lv.9" };
-            for (int i = 0; i < 3; i++)
-            {
-                float x = .175f + i * .25f;
-                var lockOuter = Box(footer, $"LockSlot {i + 1}", new Vector2(x, -.15f),
-                    new Vector2(x + .15f, 1.72f), Hex("#41598C"));
-                var lockInner = InsetBox(lockOuter, "LockFace", 4, Hex("#7D94C2"));
-                Label(lockInner, locks[i], 38, Hex("#FDFDFD"));
-            }
         }
 
         private static void ConfigurePortrait()

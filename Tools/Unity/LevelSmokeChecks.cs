@@ -21,6 +21,10 @@ public static class LevelSmokeChecks
         bool savedSlotWorks = savedMap != null && savedGame != null && savedMap.LoadMap() && savedGame.Initialize() && savedGame.AddSlot() && savedGame.Slots.Count == 5;
         SessionState.SetBool("LevelSmoke.SavedSlot", savedSlotWorks);
         if (savedGame != null) savedGame.Restart();
+        if (savedGame != null) savedGame.ConfigureSlotSurfaces(null);
+        var migration = typeof(ColonyFlow.Gameplay.Editor.FixedLayoutSetup).Assembly.GetType("ColonyFlow.Gameplay.Editor.SlotSurfaceMigration");
+        migration?.GetMethod("RepairOpenScenes").Invoke(null, null);
+        SessionState.SetBool("LevelSmoke.SurfaceMigration", savedGame != null && savedGame.CanAddSlot && savedGame.AddSlot());
         ColonyFlow.Gameplay.Editor.FixedLayoutSetup.Apply();
         var editorMap = Object.FindFirstObjectByType<MapView>();
         var editorGame = Object.FindFirstObjectByType<AntGameplay>();
@@ -53,6 +57,7 @@ public static class LevelSmokeChecks
         game = Object.FindFirstObjectByType<AntGameplay>();
         Check("scene components", map != null && game != null);
         Check("saved scene adds fifth slot without Editor rebuild", SessionState.GetBool("LevelSmoke.SavedSlot", false));
+        Check("open scene missing new surface field repairs Add Slot", SessionState.GetBool("LevelSmoke.SurfaceMigration", false));
         Check("Editor rebuild writes complete references", SessionState.GetBool("LevelSmoke.EditorReferences", false));
         if (map == null || game == null) { Finish(); return; }
         var data = JsonUtility.FromJson<MapJsonData>(File.ReadAllText("Assets/_Game/Data/Maps/map1.json"));

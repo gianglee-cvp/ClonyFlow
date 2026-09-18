@@ -8,6 +8,7 @@ namespace ColonyFlow.Gameplay
     {
         private const int ColorsPerRow = 6;
         private readonly List<int> blowColors = new List<int>();
+        private GUIStyle boosterButtonStyle;
         public bool IsSelectingBlow { get; private set; }
         public IReadOnlyList<int> AvailableBlowColors => blowColors;
         private float GameplayUIScale => Mathf.Min(1, Screen.height / 960f);
@@ -29,32 +30,61 @@ namespace ColonyFlow.Gameplay
 
         private void DrawBoosters()
         {
-            float width = (UIWidth - 48) / 3f;
-            float y = UIHeight - 66;
-            DrawBoosterButton(new Rect(12, y, width, 28), "Add Slot", CanAddSlot, () => AddSlot());
-            DrawBoosterButton(new Rect(24 + width, y, width, 28), "Pickup", CanUseBooster() && Array.Exists(slots, box => box == null), () => BeginPickupSelection());
-            DrawBoosterButton(new Rect(36 + width * 2, y, width, 28), "Blow", CanUseBooster(), () => BeginBlowSelection());
+            DrawBoosterButton(BoosterActionRect(0), "Add Slot", CanAddSlot, () => AddSlot());
+            DrawBoosterButton(BoosterActionRect(1), "Pickup", CanUseBooster() && Array.Exists(slots, box => box == null), () => BeginPickupSelection());
+            DrawBoosterButton(BoosterActionRect(2), "Blow", CanUseBooster(), () => BeginBlowSelection());
             DrawBoosterSelection();
+        }
+
+        private Rect BoosterActionRect(int index)
+        {
+            float width = (UIWidth - 48) / 3f;
+            return new Rect(12 + index * (width + 12), UIHeight - 66, width, 28);
+        }
+
+        private Rect BoosterCancelRect => new Rect(UIWidth - 90, UIHeight - 102, 80, 28);
+
+        private Rect BlowColorRect(int index)
+        {
+            float width = (UIWidth - 24) / ColorsPerRow;
+            return new Rect(12 + index % ColorsPerRow * width, UIHeight - 136 - index / ColorsPerRow * 34, width - 6, 28);
+        }
+
+        private bool HandleBoosterPointer(Vector2 screen)
+        {
+            var point = new Vector2(screen.x, Screen.height - screen.y) / GameplayUIScale;
+            if (BoosterActionRect(0).Contains(point)) { AddSlot(); return true; }
+            if (BoosterActionRect(1).Contains(point)) { BeginPickupSelection(); return true; }
+            if (BoosterActionRect(2).Contains(point)) { BeginBlowSelection(); return true; }
+            if (!IsSelectingPickup && !IsSelectingBlow) return false;
+            if (BoosterCancelRect.Contains(point)) { CancelBoosterSelection(); return true; }
+            if (!IsSelectingBlow) return false;
+            for (int i = 0; i < blowColors.Count; i++)
+            {
+                if (!BlowColorRect(i).Contains(point)) continue;
+                BlowColor(blowColors[i]);
+                return true;
+            }
+            return false;
         }
 
         private void DrawBoosterSelection()
         {
             if (!IsSelectingPickup && !IsSelectingBlow) return;
             GUI.Label(new Rect(12, UIHeight - 100, UIWidth - 110, 24), IsSelectingPickup ? "Choose a queue box" : "Choose a color");
-            if (GUI.Button(new Rect(UIWidth - 90, UIHeight - 102, 80, 28), "Cancel")) CancelBoosterSelection();
+            DrawBoosterButton(BoosterCancelRect, "Cancel", true, CancelBoosterSelection);
             if (IsSelectingBlow) DrawBlowColors();
         }
 
         private void DrawBlowColors()
         {
-            float width = (UIWidth - 24) / ColorsPerRow;
             var background = GUI.backgroundColor;
             // BlowColor clears the selection list; stop drawing after an accepted choice.
             for (int i = 0; i < blowColors.Count; i++)
             {
                 int colorId = blowColors[i];
                 GUI.backgroundColor = mapView.Model.GetColor(colorId);
-                var rect = new Rect(12 + i % ColorsPerRow * width, UIHeight - 136 - i / ColorsPerRow * 34, width - 6, 28);
+                var rect = BlowColorRect(i);
                 bool chosen = false;
                 DrawBoosterButton(rect, colorId.ToString(), CanUseBooster() && HasRemainingColor(colorId), () => chosen = BlowColor(colorId));
                 if (chosen) break;
@@ -62,11 +92,14 @@ namespace ColonyFlow.Gameplay
             GUI.backgroundColor = background;
         }
 
-        private static void DrawBoosterButton(Rect rect, string label, bool enabled, Action action)
+        private void DrawBoosterButton(Rect rect, string label, bool enabled, Action action)
         {
+            if (boosterButtonStyle == null)
+                boosterButtonStyle = new GUIStyle(GUI.skin.button) { padding = new RectOffset(6, 6, 0, 0) };
+            boosterButtonStyle.fontSize = Mathf.RoundToInt(12 / GameplayUIScale);
             bool previous = GUI.enabled;
             GUI.enabled = previous && enabled;
-            if (GUI.Button(rect, label)) action();
+            if (GUI.Button(rect, label, boosterButtonStyle)) action();
             GUI.enabled = previous;
         }
     }

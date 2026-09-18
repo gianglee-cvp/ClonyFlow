@@ -90,6 +90,8 @@ JSON box có `kind` tùy chọn: `0` Normal (mặc định), `1` Hidden, `2` Sti
 
 UI phía dưới có `Add Slot`, `Pickup`, `Blow`. Pickup chọn box trực tiếp trên queue; Blow mở các nút màu còn cell trên map. `Cancel` hủy lựa chọn. UI sở hữu vùng input của mình; đang chọn màu sẽ không vô tình pick box. Booster chưa tiêu hao vật phẩm.
 
+MouseDown trên booster/palette dùng cùng Rect với phần draw và được consume ngay, không đợi GUI.Button xử lý MouseUp. Ô khóa `Lv.3/Lv.6/Lv.9` placeholder đã bỏ. Editor migration tự gán lại `Slot Surfaces` còn thiếu trong scene đã mở từ trước và dọn footer cũ khi reload/đổi Play Mode; không có hierarchy lookup trong runtime/update.
+
 `BeginBlowSelection()` mở lựa chọn màu; `AvailableBlowColors` cung cấp danh sách màu. `BlowColor(colorId)` remove toàn bộ cell màu đó qua pooling, đưa budget box cùng màu trong queue/slot/pending về 0 và dọn box rỗng. Outbound/WaitingPickup cùng màu được hủy, outgoing/reservation được giải phóng và không refund. Returning/Jumping đã lấy cell vẫn hoàn thành chuyến về hole; màn chỉ WIN khi các kiến này về hết. Màu khác giữ nguyên trip/budget/reservation. Navigation được rebuild ngay sau thao tác.
 
 Pause, board đã clear hoặc màu không còn cell sẽ từ chối Thổi. Restart khôi phục JSON, layout và selection của màn.

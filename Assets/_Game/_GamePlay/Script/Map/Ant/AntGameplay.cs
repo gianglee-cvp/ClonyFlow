@@ -557,7 +557,7 @@ namespace ColonyFlow.Gameplay
                 CancelBoosterSelection();
                 return;
             }
-            HandleGUIEvent();
+            HandleGUIEvent(Event.current);
             var matrix = GUI.matrix;
             GUI.matrix = matrix * Matrix4x4.Scale(new Vector3(GameplayUIScale, GameplayUIScale, 1));
             DrawBoosters();
@@ -565,13 +565,14 @@ namespace ColonyFlow.Gameplay
             GUI.matrix = matrix;
         }
 
-        private void HandleGUIEvent()
+        private bool HandleGUIEvent(Event guiEvent)
         {
-            var e = Event.current;
-            if (e.type != EventType.MouseDown || e.button != 0) return;
-            if (e.mousePosition.y >= Screen.height - BoosterPanelHeight) return;
-            var screen = new Vector2(e.mousePosition.x, Screen.height - e.mousePosition.y);
-            if (HandlePointer(screen)) e.Use();
+            if (guiEvent == null || guiEvent.type == EventType.Used ||
+                guiEvent.rawType != EventType.MouseDown || guiEvent.button != 0) return false;
+            var screen = new Vector2(guiEvent.mousePosition.x, Screen.height - guiEvent.mousePosition.y);
+            if (!HandlePointer(screen)) return false;
+            guiEvent.Use();
+            return true;
         }
 
         private void DrawStatus()
@@ -585,6 +586,7 @@ namespace ColonyFlow.Gameplay
         public bool HandlePointer(Vector2 screen)
         {
             if (!HasCurrentSession) return false;
+            if (HandleBoosterPointer(screen)) return true;
             var vp = gameplayCamera.ScreenToViewportPoint(screen);
             if (vp.y > .9f && vp.x < .12f) { TogglePause(); return true; }
             if (vp.y > .9f && vp.x > .77f) { ToggleSpeed(); return true; }

@@ -8,6 +8,18 @@ public static class BoosterSmokeChecks
     public static void RunSlots(MapView map, AntGameplay game, Action<string, bool> check)
     {
         game.Restart();
+        float uiScale = Mathf.Min(1, Screen.height / 960f);
+        float actionWidth = (Screen.width / uiScale - 48) / 3f;
+        var addButton = new Vector2((12 + actionWidth * .5f) * uiScale, 52 * uiScale);
+        check("screen click Add Slot creates fifth slot", game.HandlePointer(addButton) && game.Slots.Count == 5);
+        game.Restart();
+        var down = new Event { type = EventType.MouseDown, button = 0, mousePosition = new Vector2(addButton.x, Screen.height - addButton.y) };
+        bool handledDown = (bool)typeof(AntGameplay).GetMethod("HandleGUIEvent", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(game, new object[] { down });
+        check("Add Slot mouse-down handler accepts press and creates slot", handledDown && game.Slots.Count == 5);
+        var up = new Event { type = EventType.MouseUp, button = 0 };
+        bool handledUp = (bool)typeof(AntGameplay).GetMethod("HandleGUIEvent", BindingFlags.Instance | BindingFlags.NonPublic).Invoke(game, new object[] { up });
+        check("Add Slot mouse-up does not activate again", !handledUp && game.Slots.Count == 5);
+        game.Restart();
         var method = typeof(AntGameplay).GetMethod("AddSlot");
         check("Add Slot API exists", method != null);
         if (method == null) return;
@@ -155,10 +167,19 @@ public static class BoosterSmokeChecks
         var camera = (Camera)typeof(AntGameplay).GetField("gameplayCamera", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(game);
         Physics.SyncTransforms();
         check("Blow selection prevents ordinary box picking", !game.HandlePointer(camera.WorldToScreenPoint(queues[0][0].HitCollider.bounds.center)) && game.Slots[0] == null);
-        check("booster HUD region does not pick boxes", !game.HandlePointer(new Vector2(100, 20)));
+        check("booster HUD background does not pick boxes", !game.HandlePointer(new Vector2(100, 10 * Mathf.Min(1, Screen.height / 960f))));
         game.CancelBoosterSelection();
         check("switch to Pickup replaces Blow selection", game.BeginPickupSelection());
         check("switch to Blow replaces Pickup selection", (bool)begin.Invoke(game, null) && !game.IsSelectingPickup);
+        game.CancelBoosterSelection();
+        float scale = Mathf.Min(1, Screen.height / 960f);
+        float width = (Screen.width / scale - 48) / 3f;
+        check("Pickup button screen click starts selection", game.HandlePointer(new Vector2((24 + width * 1.5f) * scale, 52 * scale)) && game.IsSelectingPickup);
+        check("Cancel button screen click clears selection", game.HandlePointer(new Vector2(Screen.width - 50 * scale, 88 * scale)) && !game.IsSelectingPickup);
+        check("Blow button screen click starts selection", game.HandlePointer(new Vector2((36 + width * 2.5f) * scale, 52 * scale)) && game.IsSelectingBlow);
+        int before = game.RemainingCellCount;
+        float colorWidth = (Screen.width / scale - 24) / 6;
+        check("palette screen click executes Blow", game.HandlePointer(new Vector2((12 + colorWidth * .5f) * scale, 122 * scale)) && game.RemainingCellCount < before && !game.IsSelectingBlow);
         map.LoadJson(JsonUtility.ToJson(Data(new[] { 1, 2 }, new[] { 1, 2 }))); game.Initialize();
         check("Blow palette lists remaining colors once", (bool)begin.Invoke(game, null) && game.AvailableBlowColors.Count == 2 && game.AvailableBlowColors[0] == 1 && game.AvailableBlowColors[1] == 2);
         check("accepted color clears selection and palette", game.BlowColor(1) && !game.IsSelectingBlow && !game.IsSelectingPickup && game.AvailableBlowColors.Count == 0);
