@@ -325,8 +325,16 @@ namespace ColonyFlow.Gameplay
             IsBoardCleared = RemainingCellCount == 0;
             IsLevelComplete = IsBoardCleared && active.Count == 0;
             if (!HasQueuedBoxes()) SpeedMultiplier = 2;
-            IsDeadlocked = !IsBoardCleared && Array.TrueForAll(slots, b => b != null) &&
-                active.Count == 0 && !HasReachableSlotTarget();
+            IsDeadlocked = !IsBoardCleared && active.Count == 0 &&
+                (!HasBudgetSupply() || Array.TrueForAll(slots, b => b != null) && !HasReachableSlotTarget());
+        }
+
+        private bool HasBudgetSupply()
+        {
+            foreach (var queue in queues) foreach (var box in queue) if (box.AntCount > 0) return true;
+            foreach (var box in slots) if (box != null && box.AntCount > 0) return true;
+            foreach (var box in pendingBoxes) if (box.AntCount > 0) return true;
+            return false;
         }
 
         private bool HasQueuedBoxes()

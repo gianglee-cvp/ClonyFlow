@@ -63,6 +63,7 @@ public static class LevelSmokeChecks
         game.PickQueue(0);
         game.Advance(.01f);
         TestFailedInitialization();
+        TestExhaustedBudget();
         game.Restart();
         TestBentRoute();
         TestQueueAndCentralReturn();
@@ -336,6 +337,14 @@ public static class LevelSmokeChecks
         data.queues = new[] { data.queues[0], data.queues[0], data.queues[0], data.queues[0] };
         Check("replacement level loads at map boundary", map.LoadJson(JsonUtility.ToJson(data)));
         Check("failed initialization clears stale tasks and queue picks", !game.Initialize() && game.ActiveTripCount == 0 && !game.PickQueue(0));
+    }
+
+    private static void TestExhaustedBudget()
+    {
+        var data = JsonUtility.FromJson<MapJsonData>(Json(1, 1, new[] { 1 }, 1));
+        data.queues = new BoxQueueData[0];
+        map.LoadJson(JsonUtility.ToJson(data)); game.Initialize(); game.Advance(.01f);
+        Check("exhausted supply reports deadlock with empty slots", game.IsDeadlocked && !game.IsLevelComplete);
     }
 
     private static void Finish()
