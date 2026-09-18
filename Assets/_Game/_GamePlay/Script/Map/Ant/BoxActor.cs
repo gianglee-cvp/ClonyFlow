@@ -19,6 +19,8 @@ namespace ColonyFlow.Gameplay
         private ActorAnimation animation;
         public bool IsLanding { get; private set; }
         public int ColorId { get; private set; }
+        public BoxKind Kind { get; private set; }
+        public bool CanPickup => Kind == BoxKind.Normal && AntCount > 0;
         public int AntCount { get; private set; }
         public int OutgoingCount { get; private set; }
         public int QueueIndex { get; private set; }
@@ -38,6 +40,7 @@ namespace ColonyFlow.Gameplay
             animation?.Cancel();
             IsLanding = false;
             ColorId = AntCount = OutgoingCount = 0;
+            Kind = BoxKind.Normal;
             QueueIndex = SlotIndex = -1;
             Timer = 0;
             RefreshLabel();
@@ -52,12 +55,13 @@ namespace ColonyFlow.Gameplay
             bodyRenderers = body;
         }
 
-        public void Initialize(int colorId, int count, int queueIndex, Color color, Camera camera)
+        public void Initialize(int colorId, int count, int queueIndex, Color color, Camera camera, BoxKind kind = BoxKind.Normal)
         {
             if (animation == null) animation = new ActorAnimation(gameObject);
             animation.Cancel();
             IsLanding = false;
             ColorId = colorId;
+            Kind = kind;
             AntCount = count;
             QueueIndex = queueIndex;
             OutgoingCount = 0;

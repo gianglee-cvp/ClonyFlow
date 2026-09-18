@@ -29,7 +29,10 @@ namespace ColonyFlow.Gameplay
     {
         public int colorId;
         public int antCount;
+        public BoxKind kind;
     }
+
+    public enum BoxKind { Normal, Hidden, Stick }
 
     [Serializable]
     public sealed class MapVectorData

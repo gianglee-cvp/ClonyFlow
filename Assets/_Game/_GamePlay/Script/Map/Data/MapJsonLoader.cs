@@ -62,7 +62,8 @@ namespace ColonyFlow.Gameplay
             {
                 if (queue?.boxes == null) return false;
                 foreach (var box in queue.boxes)
-                    if (box == null || box.antCount <= 0 || !colors.ContainsKey(box.colorId)) return false;
+                    if (box == null || box.antCount <= 0 || !colors.ContainsKey(box.colorId) ||
+                        box.kind < BoxKind.Normal || box.kind > BoxKind.Stick) return false;
             }
             return true;
         }

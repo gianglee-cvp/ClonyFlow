@@ -158,7 +158,7 @@ namespace ColonyFlow.Gameplay
         private BoxActor CreateBox(int queueIndex, BoxData data)
         {
             var box = pool.Spawn(boxPrefab, parent: runtimeRoot, spawnInWorldSpace: false);
-            box.Initialize(data.colorId, data.antCount, queueIndex, mapView.Model.GetColor(data.colorId), gameplayCamera);
+            box.Initialize(data.colorId, data.antCount, queueIndex, mapView.Model.GetColor(data.colorId), gameplayCamera, data.kind);
             colliderBoxes.Add(box.HitCollider, box);
             return box;
         }
@@ -186,7 +186,7 @@ namespace ColonyFlow.Gameplay
             if (!CanPickQueue(queueIndex)) return false;
             int slot = Array.FindIndex(slots, x => x == null);
             if (slot < 0) return false;
-            MoveBoxToSlot(queueIndex, slot);
+            MoveBoxToSlot(queueIndex, 0, slot);
             RefreshQueues(true);
             return true;
         }
@@ -195,10 +195,10 @@ namespace ColonyFlow.Gameplay
             initialized && !Paused && !IsBoardCleared && !IsDeadlocked &&
             index >= 0 && index < queues.Count && queues[index].Count > 0;
 
-        private void MoveBoxToSlot(int queueIndex, int slot)
+        private void MoveBoxToSlot(int queueIndex, int boxIndex, int slot)
         {
-            var box = queues[queueIndex][0];
-            queues[queueIndex].RemoveAt(0);
+            var box = queues[queueIndex][boxIndex];
+            queues[queueIndex].RemoveAt(boxIndex);
             box.SlotIndex = slot;
             box.Timer = spawnInterval;
             box.gameObject.SetActive(true);
@@ -556,6 +556,7 @@ namespace ColonyFlow.Gameplay
             Physics.SyncTransforms();
             if (!Physics.Raycast(gameplayCamera.ScreenPointToRay(screen), out var hit) ||
                 !colliderBoxes.TryGetValue(hit.collider, out var actor)) return false;
+            if (IsSelectingPickup) return PickupBox(actor);
             if (actor.SlotIndex >= 0 || !CanPickQueue(actor.QueueIndex) || queues[actor.QueueIndex][0] != actor) return false;
             return PickQueue(actor.QueueIndex);
         }
@@ -563,6 +564,7 @@ namespace ColonyFlow.Gameplay
         private void Cleanup()
         {
             initialized = false;
+            CancelBoosterSelection();
             RecycleSession();
             queues.Clear();
             active.Clear();

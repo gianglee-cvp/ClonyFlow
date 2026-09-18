@@ -45,6 +45,50 @@ public static class BoosterSmokeChecks
     private static Transform[] Points(AntGameplay game, string name) =>
         (Transform[])typeof(AntGameplay).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic).GetValue(game);
 
+    public static void RunPickup(MapView map, AntGameplay game, Action<string, bool> check)
+    {
+        var pick = typeof(AntGameplay).GetMethod("PickupBox");
+        check("Pickup API exists", pick != null);
+        if (pick == null) return;
+        game.Restart();
+        var queues = (System.Collections.Generic.List<System.Collections.Generic.List<BoxActor>>)typeof(AntGameplay).GetField("queues", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(game);
+        var first = queues[0][0]; var middle = queues[0][1]; var back = queues[0][2]; var hiddenRow = queues[0][3];
+        check("Pickup selection starts and cancels", game.BeginPickupSelection() && game.IsSelectingPickup);
+        game.CancelBoosterSelection();
+        check("Pickup cancellation exits selection", !game.IsSelectingPickup);
+        check("Pickup rejects nonvisible queue row", !(bool)pick.Invoke(game, new object[] { hiddenRow }));
+        game.TogglePause();
+        check("Pickup rejects pause", !(bool)pick.Invoke(game, new object[] { middle }));
+        game.TogglePause();
+        check("Pickup acquires middle box by identity", (bool)pick.Invoke(game, new object[] { middle }) && game.Slots[0] == middle && queues[0][0] == first && !queues[0].Contains(middle));
+        check("Pickup landing blocks dispatch", middle.IsLanding && game.ActiveTripCount == 0);
+        check("Pickup rejects box already in slot", !(bool)pick.Invoke(game, new object[] { middle }));
+        check("Pickup acquires visible back then front", (bool)pick.Invoke(game, new object[] { back }) && (bool)pick.Invoke(game, new object[] { first }));
+        check("Pickup fourth box fills last slot", (bool)pick.Invoke(game, new object[] { queues[0][0] }));
+        check("Pickup rejects full slots", !(bool)pick.Invoke(game, new object[] { queues[0][0] }));
+        check("Pickup selection rejects full slots", !game.BeginPickupSelection());
+        var json = JsonUtility.ToJson(Data(new[] { 1 }, new[] { 1, 1, 1 }));
+        foreach (int kind in new[] { 1, 2 })
+        {
+            map.LoadJson(json.Replace("\"kind\":0", "\"kind\":" + kind)); game.Initialize();
+            queues = (System.Collections.Generic.List<System.Collections.Generic.List<BoxActor>>)typeof(AntGameplay).GetField("queues", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(game);
+            check("Pickup excludes box kind " + kind, !(bool)pick.Invoke(game, new object[] { queues[0][1] }));
+        }
+        check("loader rejects unknown box kind", MapJsonLoader.Load(json.Replace("\"kind\":0", "\"kind\":3")) == null);
+        game.Restart();
+        queues = (System.Collections.Generic.List<System.Collections.Generic.List<BoxActor>>)typeof(AntGameplay).GetField("queues", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(game);
+        check("pooled box kind resets for ordinary JSON", (bool)pick.Invoke(game, new object[] { queues[0][1] }));
+        game.Restart();
+        queues = (System.Collections.Generic.List<System.Collections.Generic.List<BoxActor>>)typeof(AntGameplay).GetField("queues", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(game);
+        middle = queues[0][1];
+        var camera = (Camera)typeof(AntGameplay).GetField("gameplayCamera", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(game);
+        Physics.SyncTransforms();
+        var pointer = camera.WorldToScreenPoint(middle.HitCollider.bounds.center);
+        check("Pickup selection routes pointer to middle box", game.BeginPickupSelection() && game.HandlePointer(pointer) && game.Slots[0] == middle && !game.IsSelectingPickup);
+        game.BeginPickupSelection(); game.Restart();
+        check("restart cancels Pickup selection", !game.IsSelectingPickup);
+    }
+
     private static MapJsonData Data(int[] cells, int[] boxColors) => new MapJsonData
     {
         rows = 1, columns = cells.Length, cells = cells,

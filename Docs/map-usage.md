@@ -78,6 +78,12 @@ Core tại [Assets/_Core/Pooling](../Assets/_Core/Pooling/README.md), độc l�
 
 Scene phải gán `Slot Surfaces` theo thứ tự slot. Editor setup tạo sẵn các references này; runtime không tìm component trong child/parent.
 
+## Booster Pickup
+
+`BeginPickupSelection()` bật chế độ chọn box; `CancelBoosterSelection()` hủy. `PickupBox(box)` chọn một box Normal trong ba hàng queue đang hiển thị, cần slot trống. Có thể chọn box giữa/cuối; box được lấy đúng theo identity, queue dồn bằng tween. Chọn thành công hoặc Restart sẽ hủy selection. Pause và board đã clear không cho dùng booster.
+
+JSON box có `kind` tùy chọn: `0` Normal (mặc định), `1` Hidden, `2` Stick. Pickup loại trừ Hidden/Stick; cơ chế riêng của hai loại này sẽ tích hợp sau. Runtime không suy ra loại box từ trạng thái active.
+
 ## Kiểm tra
 
 Kiểm tra dữ liệu, quy tắc code và serialized assets:
