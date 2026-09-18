@@ -66,6 +66,7 @@ public static class LevelSmokeChecks
         TestExhaustedBudget();
         game.Restart();
         TestBentRoute();
+        BoosterSmokeChecks.RunSlots(map, game, Check);
         TestQueueAndCentralReturn();
         TestNearestAndPointer();
         TestLevels();

@@ -72,6 +72,12 @@ Core tại [Assets/_Core/Pooling](../Assets/_Core/Pooling/README.md), độc l�
 - Kiến `DOJump` trong `Jump Duration` (mặc định 0.55 giây). Scale tăng lên `Jump Scale Multiplier` (mặc định 1.25) trong 25% thời gian đầu, rồi giảm về 0 trong phần còn lại. `Jump Height` là độ cao theo world unit. Scale gốc được phục hồi khi bắt đầu chuyến mới.
 - Pause/x2 áp dụng cho cả di chuyển và tween; disable, destroy hoặc restart hủy tween và không phát callback hoàn thành chuyến.
 
+## Booster Thêm Slot
+
+`AntGameplay.AddSlot()` thêm một slot, căn giữa hàng và tạo đủ anchor/spawn/entry. Mỗi màn dùng tối đa một lần; pause hoặc board đã clear sẽ từ chối. Có thể dùng để mở hàng slot đang deadlock. Box giữ nguyên index, tween sang anchor mới và chỉ dispatch sau khi đáp. `Restart()` phục hồi layout gốc và lượt dùng.
+
+Scene phải gán `Slot Surfaces` theo thứ tự slot. Editor setup tạo sẵn các references này; runtime không tìm component trong child/parent.
+
 ## Kiểm tra
 
 Kiểm tra dữ liệu, quy tắc code và serialized assets:

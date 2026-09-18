@@ -26,12 +26,13 @@ namespace ColonyFlow.Gameplay.Editor
             var root = new GameObject("GameplayRoot").transform;
             var surface = CreateCard(root, camera);
             var bounds = MapPerimeter.CardBounds(map.Root, surface);
-            CreateSlots(root, camera, bounds, out var anchors, out var spawns, out var entries);
+            CreateSlots(root, camera, bounds, out var anchors, out var spawns, out var entries, out var surfaces);
             var queues = CreateQueueAnchors(root, camera);
             CreateHole(root, camera, bounds, out var returning, out var jumping, out var exit);
             var gameplay = root.gameObject.AddComponent<AntGameplay>();
             gameplay.Configure(map, camera, box, ant, anchors, spawns, entries, queues, returning, jumping, exit);
             gameplay.ConfigureCard(surface);
+            gameplay.ConfigureSlotSurfaces(surfaces);
             gameplay.ConfigureLayoutUnit(LayoutUnit);
             gameplay.ConfigureBoxLayout(queueColumnStep, queueRowStep);
             map.ConfigureCellSurface(surface);
@@ -81,13 +82,14 @@ namespace ColonyFlow.Gameplay.Editor
         }
 
         private static void CreateSlots(Transform parent, Camera camera, Bounds bounds,
-            out Transform[] anchors, out Transform[] spawns, out Transform[] entries)
+            out Transform[] anchors, out Transform[] spawns, out Transform[] entries, out Renderer[] surfaces)
         {
             var root = new GameObject("ActiveSlots").transform;
             root.SetParent(parent, false);
             anchors = new Transform[4];
             spawns = new Transform[4];
             entries = new Transform[4];
+            surfaces = new Renderer[4];
             for (int i = 0; i < 4; i++)
             {
                 var slot = new GameObject($"Slot {i}").transform;
@@ -97,8 +99,8 @@ namespace ColonyFlow.Gameplay.Editor
                 spawns[i] = Point(slot, "AntSpawnPoint", position + Vector3.forward * (boxDepth * .5f));
                 entries[i] = Point(slot, "PerimeterEntry",
                     new Vector3(Mathf.Clamp(position.x, bounds.min.x, bounds.max.x), 0, bounds.min.z));
-                Primitive(slot, "Empty Slot", PrimitiveType.Cube, position + Vector3.down * (.35f * LayoutUnit),
-                    new Vector3(boxWidth, .10f, boxDepth) / LayoutUnit, Hex("#FFF7E7"), false);
+                surfaces[i] = Primitive(slot, "Empty Slot", PrimitiveType.Cube, position + Vector3.down * (.35f * LayoutUnit),
+                    new Vector3(boxWidth, .10f, boxDepth) / LayoutUnit, Hex("#FFF7E7"), false).GetComponent<Renderer>();
             }
         }
 

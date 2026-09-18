@@ -6,7 +6,7 @@ using ColonyFlow.Core.Pooling;
 
 namespace ColonyFlow.Gameplay
 {
-    public sealed class AntGameplay : MonoBehaviour
+    public sealed partial class AntGameplay : MonoBehaviour
     {
         [SerializeField] private MapView mapView;
         [SerializeField] private Camera gameplayCamera;
@@ -15,6 +15,7 @@ namespace ColonyFlow.Gameplay
         [SerializeField] private Transform[] boxAnchors;
         [SerializeField] private Transform[] antSpawnPoints;
         [SerializeField] private Transform[] perimeterEntries;
+        [SerializeField] private Renderer[] slotSurfaces;
         [SerializeField] private Transform[] queueAnchors;
         [SerializeField] private Transform holeReturn;
         [SerializeField] private Transform holeJump;
@@ -82,6 +83,7 @@ namespace ColonyFlow.Gameplay
         }
 
         public void ConfigureCard(Renderer surface) => mapCardSurface = surface;
+        public void ConfigureSlotSurfaces(Renderer[] surfaces) => slotSurfaces = surfaces;
 
         private void Start()
         {
@@ -568,6 +570,7 @@ namespace ColonyFlow.Gameplay
             colliderBoxes.Clear();
             pickups.Clear();
             pendingBoxes.Clear();
+            RestoreSlotLayout();
             if (runtimeRoot != null) DisposeObject(runtimeRoot.gameObject);
             runtimeRoot = null;
             slots = null;

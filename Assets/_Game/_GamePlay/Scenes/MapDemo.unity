@@ -757,6 +757,11 @@ MonoBehaviour:
   gameplayCamera: {fileID: 712909354}
   boxPrefab: {fileID: 6582681282159432054, guid: d16fb7af853fecf4ea4d9838f4f93fe2, type: 3}
   antPrefab: {fileID: 582887423588844565, guid: ce11edf8d687d7d43aae4eca0731ed7f, type: 3}
+  slotSurfaces:
+  - {fileID: 255672804}
+  - {fileID: 1235322}
+  - {fileID: 173223214}
+  - {fileID: 1116276823}
   boxAnchors:
   - {fileID: 1573155936}
   - {fileID: 1234648494}
