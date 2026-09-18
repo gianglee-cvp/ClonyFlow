@@ -10,11 +10,17 @@ namespace ColonyFlow.Gameplay
         public bool BeginPickupSelection()
         {
             if (!CanUseBooster() || Array.FindIndex(slots, box => box == null) < 0) return false;
+            CancelBoosterSelection();
             IsSelectingPickup = true;
             return true;
         }
 
-        public void CancelBoosterSelection() => IsSelectingPickup = false;
+        public void CancelBoosterSelection()
+        {
+            IsSelectingPickup = false;
+            IsSelectingBlow = false;
+            blowColors.Clear();
+        }
 
         private bool CanUseBooster() => initialized && !Paused && !IsBoardCleared;
 

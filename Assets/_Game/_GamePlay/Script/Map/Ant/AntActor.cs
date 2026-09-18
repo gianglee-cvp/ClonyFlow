@@ -27,6 +27,7 @@ namespace ColonyFlow.Gameplay
         private Vector3 carryLocalPosition, pickupPosition;
         private float pickupTime;
         public long TaskId { get; private set; }
+        public int ColorId { get; private set; }
         public Cell Target { get; private set; }
         public BoxActor Source { get; private set; }
         public AntTripState State { get; private set; }
@@ -57,6 +58,7 @@ namespace ColonyFlow.Gameplay
         {
             animation?.Cancel();
             TaskId = 0;
+            ColorId = 0;
             Source = null;
             Target = null;
             route = null;
@@ -92,6 +94,7 @@ namespace ColonyFlow.Gameplay
         {
             if (carriedTransform == null) CacheCarryTransforms();
             TaskId = id;
+            ColorId = target.ColorId;
             Source = source;
             Target = target;
             route = outbound;

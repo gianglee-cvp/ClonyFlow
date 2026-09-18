@@ -522,13 +522,18 @@ namespace ColonyFlow.Gameplay
         {
             if (!initialized) return;
             HandleGUIEvent();
+            var matrix = GUI.matrix;
+            GUI.matrix = matrix * Matrix4x4.Scale(new Vector3(GameplayUIScale, GameplayUIScale, 1));
+            DrawBoosters();
             DrawStatus();
+            GUI.matrix = matrix;
         }
 
         private void HandleGUIEvent()
         {
             var e = Event.current;
             if (e.type != EventType.MouseDown || e.button != 0) return;
+            if (e.mousePosition.y >= Screen.height - BoosterPanelHeight) return;
             var screen = new Vector2(e.mousePosition.x, Screen.height - e.mousePosition.y);
             if (HandlePointer(screen)) e.Use();
         }
@@ -537,8 +542,8 @@ namespace ColonyFlow.Gameplay
         {
             string status = IsLevelComplete ? "WIN" : IsBoardCleared ? "Ants returning..." :
                 IsDeadlocked ? "No reachable color - Restart" : Paused ? "Paused" : $"Bricks: {RemainingCellCount} | x{SpeedMultiplier}";
-            GUI.Label(new Rect(12, Screen.height - 30, Screen.width - 110, 24), status);
-            if (GUI.Button(new Rect(Screen.width - 90, Screen.height - 32, 80, 26), "Restart")) Restart();
+            GUI.Label(new Rect(12, UIHeight - 30, UIWidth - 110, 24), status);
+            if (GUI.Button(new Rect(UIWidth - 90, UIHeight - 32, 80, 26), "Restart")) Restart();
         }
 
         public bool HandlePointer(Vector2 screen)
@@ -547,6 +552,7 @@ namespace ColonyFlow.Gameplay
             var vp = gameplayCamera.ScreenToViewportPoint(screen);
             if (vp.y > .9f && vp.x < .12f) { TogglePause(); return true; }
             if (vp.y > .9f && vp.x > .77f) { ToggleSpeed(); return true; }
+            if (screen.y <= BoosterPanelHeight || IsSelectingBlow) return false;
             if (vp.y <= .045f || vp.y >= .875f) return false;
             return PickBoxAt(screen);
         }

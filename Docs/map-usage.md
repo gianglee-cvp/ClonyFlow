@@ -84,6 +84,14 @@ Scene phải gán `Slot Surfaces` theo thứ tự slot. Editor setup tạo sẵn
 
 JSON box có `kind` tùy chọn: `0` Normal (mặc định), `1` Hidden, `2` Stick. Pickup loại trừ Hidden/Stick; cơ chế riêng của hai loại này sẽ tích hợp sau. Runtime không suy ra loại box từ trạng thái active.
 
+## Booster Thổi và UI
+
+UI phía dưới có `Add Slot`, `Pickup`, `Blow`. Pickup chọn box trực tiếp trên queue; Blow mở các nút màu còn cell trên map. `Cancel` hủy lựa chọn. UI sở hữu vùng input của mình; đang chọn màu sẽ không vô tình pick box. Booster chưa tiêu hao vật phẩm.
+
+`BeginBlowSelection()` mở lựa chọn màu; `AvailableBlowColors` cung cấp danh sách màu. `BlowColor(colorId)` remove toàn bộ cell màu đó qua pooling, đưa budget box cùng màu trong queue/slot/pending về 0 và dọn box rỗng. Outbound/WaitingPickup cùng màu được hủy, outgoing/reservation được giải phóng và không refund. Returning/Jumping đã lấy cell vẫn hoàn thành chuyến về hole; màn chỉ WIN khi các kiến này về hết. Màu khác giữ nguyên trip/budget/reservation. Navigation được rebuild ngay sau thao tác.
+
+Pause, board đã clear hoặc màu không còn cell sẽ từ chối Thổi. Restart khôi phục JSON, layout và selection của màn.
+
 ## Kiểm tra
 
 Kiểm tra dữ liệu, quy tắc code và serialized assets:

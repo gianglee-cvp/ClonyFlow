@@ -84,6 +84,7 @@ public static class BoosterSmokeChecks
         var camera = (Camera)typeof(AntGameplay).GetField("gameplayCamera", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(game);
         Physics.SyncTransforms();
         var pointer = camera.WorldToScreenPoint(middle.HitCollider.bounds.center);
+        Debug.Log("PICKUP_POINTER_LAYOUT: screen=" + Screen.width + "x" + Screen.height + " pointer=" + pointer);
         check("Pickup selection routes pointer to middle box", game.BeginPickupSelection() && game.HandlePointer(pointer) && game.Slots[0] == middle && !game.IsSelectingPickup);
         game.BeginPickupSelection(); game.Restart();
         check("restart cancels Pickup selection", !game.IsSelectingPickup);
@@ -98,4 +99,74 @@ public static class BoosterSmokeChecks
         palette = new[] { new MapPaletteEntry { id = 1, hex = "#FF0000" }, new MapPaletteEntry { id = 2, hex = "#00FF00" } },
         queues = new[] { new BoxQueueData { boxes = Array.ConvertAll(boxColors, id => new BoxData { colorId = id, antCount = 1 }) } }
     };
+
+    public static void RunBlow(MapView map, AntGameplay game, Action<string, bool> check)
+    {
+        var blow = typeof(AntGameplay).GetMethod("BlowColor");
+        check("Blow API exists", blow != null);
+        if (blow == null) return;
+        var liveData = Data(new[] { 1, 2, 1 }, new[] { 1, 2, 1 });
+        liveData.queues[0].boxes[0].antCount = 3;
+        map.LoadJson(JsonUtility.ToJson(liveData));
+        game.Initialize(); game.PickQueue(0); game.Advance(.4f);
+        var ant = game.ActiveAnts[0]; var source = ant.Source;
+        check("Blow fixture retains matching budget in slot", source.AntCount == 2 && game.Slots[0] == source);
+        check("Blow outbound fixture has reservation", ant.State == AntTripState.Outbound && source.OutgoingCount == 1);
+        game.TogglePause();
+        check("Blow rejects pause", !(bool)blow.Invoke(game, new object[] { 1 })); game.TogglePause();
+        check("Blow removes entire selected color", (bool)blow.Invoke(game, new object[] { 1 }) && game.RemainingCellCount == 1 && map.SpawnedCellCount == 1);
+        check("Blow recycles unresolved ants without refund", game.ActiveTripCount == 0 && source.OutgoingCount == 0 && source.AntCount == 0 && ant.State == AntTripState.Inactive && ant.Source == null);
+        var reserves = (System.Collections.Generic.Dictionary<Cell, long>)typeof(AntGameplay).GetField("reserves", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(game);
+        check("Blow removes reservations and rebuilds navigation", reserves.Count == 0 && game.Navigation.NavigationWeight(map.Model.GetCell(0, 0)) == 1);
+        var queues = (System.Collections.Generic.List<System.Collections.Generic.List<BoxActor>>)typeof(AntGameplay).GetField("queues", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(game);
+        check("Blow preserves other color budget", queues[0].Count == 1 && queues[0][0].ColorId == 2 && queues[0][0].AntCount == 1);
+        check("Blow rejects missing and repeated color", !(bool)blow.Invoke(game, new object[] { 99 }) && !(bool)blow.Invoke(game, new object[] { 1 }));
+        check("Blow final color completes board", (bool)blow.Invoke(game, new object[] { 2 }) && game.IsLevelComplete);
+        map.LoadJson(JsonUtility.ToJson(Data(new[] { 1, 1 }, new[] { 1 }))); game.Initialize(); game.PickQueue(0); game.Advance(.4f);
+        ant = game.ActiveAnts[0]; source = ant.Source;
+        ant.Advance(100, 100);
+        check("Blow handles WaitingPickup without refund", ant.State == AntTripState.WaitingPickup && (bool)blow.Invoke(game, new object[] { 1 }) && source.OutgoingCount == 0 && source.AntCount == 0 && game.IsLevelComplete);
+        foreach (bool jumping in new[] { false, true })
+        {
+            map.LoadJson(JsonUtility.ToJson(Data(new[] { 1, 1 }, new[] { 1, 1 }))); game.Initialize(); game.PickQueue(0); game.Advance(.4f);
+            ant = game.ActiveAnts[0]; ant.Advance(100, 100); game.Advance(.001f);
+            if (jumping) ant.Advance(100, 100);
+            var state = ant.State;
+            check("Blow preserves resolved trip " + state, state == (jumping ? AntTripState.Jumping : AntTripState.Returning) && ant.ColorId == 1 && ant.Target.IsEmpty && (bool)blow.Invoke(game, new object[] { 1 }) && ant.State == state && game.IsBoardCleared && !game.IsLevelComplete);
+            for (int i = 0; i < 3000 && !game.IsLevelComplete; i++) game.Advance(.02f);
+            check("Blow waits for resolved trip to finish " + state, game.IsLevelComplete);
+        }
+        map.LoadJson(JsonUtility.ToJson(Data(new[] { 1, 2 }, new[] { 1, 2 }))); game.Initialize(); game.PickQueue(0); game.PickQueue(0); game.Advance(.4f);
+        AntActor other = null;
+        foreach (var trip in game.ActiveAnts) if (trip.Target.ColorId == 2) other = trip;
+        var otherSource = other?.Source;
+        check("Blow preserves other color active trip and reservation", other != null && (bool)blow.Invoke(game, new object[] { 1 }) && game.ActiveTripCount == 1 && game.ActiveAnts[0] == other && otherSource.OutgoingCount == 1 && reserves.ContainsKey(other.Target));
+        game.Restart();
+    }
+
+    public static void RunSelection(MapView map, AntGameplay game, Action<string, bool> check)
+    {
+        var begin = typeof(AntGameplay).GetMethod("BeginBlowSelection");
+        check("Blow selection API exists", begin != null);
+        if (begin == null) return;
+        game.Restart();
+        check("Blow selection starts", (bool)begin.Invoke(game, null));
+        var queues = (System.Collections.Generic.List<System.Collections.Generic.List<BoxActor>>)typeof(AntGameplay).GetField("queues", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(game);
+        var camera = (Camera)typeof(AntGameplay).GetField("gameplayCamera", BindingFlags.Instance | BindingFlags.NonPublic).GetValue(game);
+        Physics.SyncTransforms();
+        check("Blow selection prevents ordinary box picking", !game.HandlePointer(camera.WorldToScreenPoint(queues[0][0].HitCollider.bounds.center)) && game.Slots[0] == null);
+        check("booster HUD region does not pick boxes", !game.HandlePointer(new Vector2(100, 20)));
+        game.CancelBoosterSelection();
+        check("switch to Pickup replaces Blow selection", game.BeginPickupSelection());
+        check("switch to Blow replaces Pickup selection", (bool)begin.Invoke(game, null) && !game.IsSelectingPickup);
+        map.LoadJson(JsonUtility.ToJson(Data(new[] { 1, 2 }, new[] { 1, 2 }))); game.Initialize();
+        check("Blow palette lists remaining colors once", (bool)begin.Invoke(game, null) && game.AvailableBlowColors.Count == 2 && game.AvailableBlowColors[0] == 1 && game.AvailableBlowColors[1] == 2);
+        check("accepted color clears selection and palette", game.BlowColor(1) && !game.IsSelectingBlow && !game.IsSelectingPickup && game.AvailableBlowColors.Count == 0);
+        game.BeginBlowSelection(); game.TogglePause();
+        check("pause rejects booster selection", !game.BeginBlowSelection() && !game.BeginPickupSelection()); game.TogglePause();
+        game.BlowColor(2);
+        check("cleared board rejects all boosters", !game.AddSlot() && !game.BeginBlowSelection() && !game.BeginPickupSelection());
+        game.Restart();
+        check("restart clears Blow palette and selection", !game.IsSelectingBlow && !game.IsSelectingPickup && game.AvailableBlowColors.Count == 0 && game.RemainingCellCount == 676);
+    }
 }

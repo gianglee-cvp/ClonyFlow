@@ -1,12 +1,12 @@
-# Booster và quy trình phát triển — bản nháp
+# Booster và quy trình phát triển — plan đã duyệt
 
-Trạng thái: đã chốt3 câu hỏi; thiết kế bên dưới chờ duyệt trước implementation. Chưa triển khai booster hoặc commit.
+Trạng thái: hoàn thành implementation và verification theo thiết kế user đã duyệt. Baseline pooling, deadlock, rule/skill, Thêm Slot và Pickup đã được test/review/commit riêng. Thổi và UI đã đạt checkpoint cuối, sẵn sàng commit phần này.
 
 ## Câu trả lời đã chốt
 
 User chọn plan/review rồi triển khai3 booster; Hidden/Stick chỉ có điều kiện loại trừ để tích hợp cơ chế sau; Thêm Slot tối đa1 lần/màn; chưa tiêu hao vật phẩm cho booster.
 
-## Thiết kế đề xuất để duyệt
+## Thiết kế đã duyệt
 
 - Thêm Slot tạo slot thứ5 bằng runtime layout, cập nhật đồng thời anchor/spawn/entry/slots, giữ index slot cũ. Reset về số slot gốc khi restart. Dùng được khi đang deadlock, nhưng không sau khi board đã cleared. Cờ dùng1 lần reset mỗi màn.
 - Pickup bật chế độ chọn box bất kỳ đang hiển thị trong queue, gồm box ở giữa/cuối của phần hiển thị. Box ngoài màn hình chưa có click target; không mở cơ chế reveal Hidden Box. Model có eligibility/box-kind contract để loại trừ Hidden/Stick, mặc định Normal cho JSON cũ. Chọn thành công đưa box lên slot bằng tween, remove đúng vị trí rồi dồn queue. Không có slot trống thì không tiêu thụ thao tác; có thể hủy chế độ chọn.
@@ -45,7 +45,7 @@ AntGameplay quản lý slot qua boxAnchors/antSpawnPoints/perimeterEntries và s
 7. **UI/docs:** nối hành động theo pattern UI hiện có hoặc phương án được duyệt; MD mỗi folder Core; usage/schema docs cho gameplay. Test input flow và smoke tất cả level.
 8. **Review cuối:** agent kiểm tra hành vi/correctness trước tối ưu. Chỉ tối ưu khi chỉ ra chi phí lặp hoặc lifetime issue cụ thể; không mở rộng abstraction theo phỏng đoán. Kiểm tra diff và commit phạm vi đã xác minh.
 
-## Folder đề xuất, chưa tạo source
+## Folder đã triển khai
 
 Gameplay giữ Map/Data cho schema; Map/Ant cho actor/navigation hiện có; Map/Booster cho logic từng booster và coordinator khi cần chia responsibilities. UI chỉ chọn đối tượng/màu và gọi gameplay API. Core Pooling/Tween không phụ thuộc booster, không đưa luật game vào Core. Tách folder theo trách nhiệm và hướng dependency, không tách mỗi class thành một folder.
 
@@ -53,4 +53,6 @@ Gameplay giữ Map/Data cho schema; Map/Ant cho actor/navigation hiện có; Map
 
 `Tools/Tests/test_level_assets.py` kiểm tra JSON/assets/MD và project policy; `Tools/Unity/LevelSmokeChecks.cs` và `PoolingSmokeChecks.cs` kiểm tra PlayMode trong bản sao. Thêm scenario booster có kết quả quan sát được, không chỉ kiểm tra code giống implementation. Mỗi phần phải build/test và review đạt trước commit. Commit chỉ paths/diff của phần đó; staged changes đang có cần phân loại trước, không commit toàn workspace bằng git add all.
 
-Các test booster chưa viết/chưa chạy. Baseline trước đạt64 smoke và10 asset tests; không suy ra các booster đã hoạt động.
+Checkpoint đã xác minh: baseline deadlock 65 smoke; Thêm Slot 80 smoke; Pickup 98 smoke; transaction Thổi 113 smoke, đều không lỗi. Test đỏ đã được quan sát cho API chưa có trước từng phần. Agent review phát hiện fixture kind bị lặp; fixture đã sửa. Test pointer cần Physics.SyncTransforms trước khi lấy bounds của collider vừa reuse. Test tích hợp cũng phát hiện panel UI cố định 108 pixel chặn box giữa trên headless screen 640x480 (pointer y=93.09); UI và vùng input nay dùng cùng hệ số scale.
+
+Verification cuối: **125 PlayMode smoke checks, 0 failures; 10 asset tests đạt; diff check sạch**. Bao phủ đầy slot/deadlock/slot thứ năm, pause, Pickup theo identity/collider/kind, pooling reset, Thổi ở bốn trip states, slot/queue/pending budgets, reservations, màu khác, repeated calls, palette/selection, completion và restart. Agent read-only review từng phần và tích hợp cuối không còn finding cần sửa. Chưa tích hợp gameplay riêng của Hidden/Stick, inventory hoặc tiêu hao vật phẩm theo scope đã chốt.

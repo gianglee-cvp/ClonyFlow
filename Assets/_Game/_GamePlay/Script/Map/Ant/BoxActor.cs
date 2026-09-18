@@ -137,6 +137,17 @@ namespace ColonyFlow.Gameplay
             return true;
         }
 
+        public void ClearBudget()
+        {
+            AntCount = 0;
+            RefreshLabel();
+        }
+
+        public void DiscardOutgoing()
+        {
+            if (OutgoingCount > 0) OutgoingCount--;
+        }
+
         private void RefreshLabel()
         {
             if (countLabel != null) countLabel.text = AntCount.ToString();

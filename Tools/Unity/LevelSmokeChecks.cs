@@ -68,6 +68,8 @@ public static class LevelSmokeChecks
         TestBentRoute();
         BoosterSmokeChecks.RunSlots(map, game, Check);
         BoosterSmokeChecks.RunPickup(map, game, Check);
+        BoosterSmokeChecks.RunBlow(map, game, Check);
+        BoosterSmokeChecks.RunSelection(map, game, Check);
         TestQueueAndCentralReturn();
         TestNearestAndPointer();
         TestLevels();
