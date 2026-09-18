@@ -1,0 +1,4 @@
+interface:
+  display_name: "Unity Core Module Planner"
+  short_description: "Plan reusable Unity core modules from documentation"
+  default_prompt: "Use $unity-core-module-planner to analyze this module documentation and create a Unity architecture and file-level implementation plan in Vietnamese."
