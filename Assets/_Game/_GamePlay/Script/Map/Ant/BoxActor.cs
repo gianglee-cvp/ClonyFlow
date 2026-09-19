@@ -12,7 +12,6 @@ namespace ColonyFlow.Gameplay
         [SerializeField] private RectTransform countCanvas;
         [SerializeField] private Collider hitCollider;
         [SerializeField] private Renderer[] bodyRenderers;
-        private MaterialPropertyBlock propertyBlock;
         [SerializeField, Min(.01f)] private float slotJumpDuration = .35f;
         [SerializeField, Min(0)] private float slotJumpHeight = 1.4f;
         [SerializeField, Min(.01f)] private float queueMoveDuration = .25f;
@@ -27,6 +26,7 @@ namespace ColonyFlow.Gameplay
         public int SlotIndex { get; internal set; } = -1;
         public float Timer { get; internal set; }
         public Collider HitCollider => hitCollider;
+        public Material ColorMaterialTemplate => face != null ? face.sharedMaterial : null;
 
         public void OnPoolSpawned()
         {
@@ -55,7 +55,8 @@ namespace ColonyFlow.Gameplay
             bodyRenderers = body;
         }
 
-        public void Initialize(int colorId, int count, int queueIndex, Color color, Camera camera, BoxKind kind = BoxKind.Normal)
+        public void Initialize(int colorId, int count, int queueIndex, Material colorMaterial, Camera camera,
+            BoxKind kind = BoxKind.Normal)
         {
             if (animation == null) animation = new ActorAnimation(gameObject);
             animation.Cancel();
@@ -67,17 +68,9 @@ namespace ColonyFlow.Gameplay
             OutgoingCount = 0;
             SlotIndex = -1;
             Timer = 0;
-            ApplyColor(color);
+            if (colorMaterial != null) face.sharedMaterial = colorMaterial;
             RefreshLabel();
             AlignCount(camera);
-        }
-
-        private void ApplyColor(Color color)
-        {
-            if (propertyBlock == null) propertyBlock = new MaterialPropertyBlock();
-            propertyBlock.SetColor("_BaseColor", color);
-            propertyBlock.SetColor("_Color", color);
-            face.SetPropertyBlock(propertyBlock);
         }
 
         public void JumpToSlot(Vector3 destination, float unit)

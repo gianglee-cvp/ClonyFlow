@@ -6,36 +6,18 @@ namespace ColonyFlow.Gameplay
     public sealed class CellView : MonoBehaviour, IPoolable
     {
         [SerializeField] private Renderer[] renderers;
-        private MaterialPropertyBlock propertyBlock;
-        private static readonly int BaseColor = Shader.PropertyToID("_BaseColor");
-        private static readonly int ColorProperty = Shader.PropertyToID("_Color");
         public Cell Cell { get; private set; }
+        public Material MaterialTemplate => renderers != null && renderers.Length > 0 ? renderers[0].sharedMaterial : null;
         public void OnPoolSpawned() => Cell = null;
         public void OnPoolRecycled() => Cell = null;
 
         public void Configure(Renderer[] targets) => renderers = targets;
 
-        public void Initialize(Cell cell, Color color)
+        public void Initialize(Cell cell, Material colorMaterial)
         {
             Cell = cell;
-            ApplyColor(color);
-        }
-
-        private void ApplyColor(Color color)
-        {
-            if (propertyBlock == null) propertyBlock = new MaterialPropertyBlock();
             foreach (var renderer in renderers)
-            {
-                var materials = renderer.sharedMaterials;
-                for (int i = 0; i < materials.Length; i++)
-                {
-                    propertyBlock.Clear();
-                    renderer.GetPropertyBlock(propertyBlock, i);
-                    propertyBlock.SetColor(BaseColor, color);
-                    propertyBlock.SetColor(ColorProperty, color);
-                    renderer.SetPropertyBlock(propertyBlock, i);
-                }
-            }
+                if (colorMaterial != null) renderer.sharedMaterial = colorMaterial;
         }
 
         public float WorldBottom()

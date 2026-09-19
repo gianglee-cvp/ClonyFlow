@@ -11,6 +11,7 @@ namespace ColonyFlow.Gameplay
         [SerializeField] private Camera mapCamera;
         [SerializeField] private Transform mapRoot;
         [SerializeField] private Renderer mapCardSurface;
+        [SerializeField] private Material colorMaterialTemplate;
         [SerializeField, Min(0)] private float mapPadding = .35f;
         [SerializeField, Min(1)] private float cellHeightMultiplier = 2;
         [SerializeField, Min(0)] private float cellGroundClearance = .2f;
@@ -18,6 +19,7 @@ namespace ColonyFlow.Gameplay
         private readonly Dictionary<Cell, CellView> cellViews = new Dictionary<Cell, CellView>();
         private GameObject spawnedRoot;
         private ObjectPoolManager pool;
+        private SharedColorMaterialCache colorMaterials;
         private readonly Dictionary<Cell, Vector3> collectedPositions = new Dictionary<Cell, Vector3>();
         public Transform Root => mapRoot;
         public MapModel Model { get; private set; }
@@ -33,6 +35,7 @@ namespace ColonyFlow.Gameplay
 
         public void ConfigureCellPrefab(CellView prefab) => cellPrefab = prefab;
         public void ConfigureCellSurface(Renderer surface) => mapCardSurface = surface;
+        public void ConfigureColorMaterial(Material material) => colorMaterialTemplate = material;
 
         private void Start()
         {
@@ -63,6 +66,8 @@ namespace ColonyFlow.Gameplay
             if (pool == null) pool = new ObjectPoolManager(transform);
             pool.Load(cellPrefab, model.ColoredCellCount);
             Model = model;
+            colorMaterials = new SharedColorMaterialCache(colorMaterialTemplate != null
+                ? colorMaterialTemplate : cellPrefab.MaterialTemplate);
             CreateMapRoot();
             SpawnCells();
             spawnedRoot.SetActive(true);
@@ -103,7 +108,7 @@ namespace ColonyFlow.Gameplay
             view.transform.localScale = Model.CellScale;
             view.transform.position += Vector3.up * (groundTop + cellGroundClearance - view.WorldBottom());
             view.name = $"Cell [{cell.Row},{cell.Column}] Color {cell.ColorId}";
-            view.Initialize(cell, Model.GetColor(cell.ColorId));
+            view.Initialize(cell, colorMaterials.Get(cell.ColorId, Model.GetColor(cell.ColorId)));
             view.gameObject.SetActive(true);
             cellViews.Add(cell, view);
         }
@@ -129,6 +134,8 @@ namespace ColonyFlow.Gameplay
             cellViews.Clear();
             collectedPositions.Clear();
             Model = null;
+            colorMaterials?.Dispose();
+            colorMaterials = null;
         }
 
         private void DisposeRoot()

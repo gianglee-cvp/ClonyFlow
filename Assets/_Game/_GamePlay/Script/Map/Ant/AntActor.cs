@@ -9,6 +9,7 @@ namespace ColonyFlow.Gameplay
 
     public sealed class AntActor : MonoBehaviour, IPoolable
     {
+        [SerializeField] private Transform visualRoot;
         [SerializeField] private GameObject carriedBrick;
         [SerializeField] private Renderer carriedRenderer;
         [SerializeField] private Renderer abdomen;
@@ -21,7 +22,6 @@ namespace ColonyFlow.Gameplay
         private Transform carryParent;
         private List<Vector3> route;
         private List<Vector3> returnRoute;
-        private MaterialPropertyBlock propertyBlock;
         private int waypoint;
         private Vector3 jumpTarget;
         private Vector3 carryLocalPosition, pickupPosition;
@@ -31,6 +31,7 @@ namespace ColonyFlow.Gameplay
         public Cell Target { get; private set; }
         public BoxActor Source { get; private set; }
         public AntTripState State { get; private set; }
+        public Material ColorMaterialTemplate => abdomen != null ? abdomen.sharedMaterial : null;
 
         private void Awake()
         {
@@ -67,12 +68,14 @@ namespace ColonyFlow.Gameplay
             pickupTime = .2f;
             State = AntTripState.Inactive;
             transform.localScale = initialScale;
+            if (visualRoot != null) visualRoot.localPosition = Vector3.zero;
             if (carriedBrick != null) carriedBrick.SetActive(false);
             if (carriedTransform != null) carriedTransform.localPosition = carryLocalPosition;
         }
 
-        public void Configure(Renderer brick, Renderer body)
+        public void Configure(Transform visual, Renderer brick, Renderer body)
         {
+            visualRoot = visual;
             carriedRenderer = brick;
             carriedBrick = brick.gameObject;
             abdomen = body;
@@ -90,7 +93,7 @@ namespace ColonyFlow.Gameplay
         public void ConfigureJumpHeight(float height) => jumpHeight = height;
 
         public void Begin(long id, BoxActor source, Cell target, Vector3 spawn, List<Vector3> outbound,
-            List<Vector3> returning, Vector3 jump, Color color)
+            List<Vector3> returning, Vector3 jump, Material colorMaterial)
         {
             if (carriedTransform == null) CacheCarryTransforms();
             TaskId = id;
@@ -112,17 +115,12 @@ namespace ColonyFlow.Gameplay
             transform.position = spawn;
             State = AntTripState.Outbound;
             carriedBrick.SetActive(false);
-            ApplyColor(color);
+            if (colorMaterial != null)
+            {
+                abdomen.sharedMaterial = colorMaterial;
+                carriedRenderer.sharedMaterial = colorMaterial;
+            }
             gameObject.SetActive(true);
-        }
-
-        private void ApplyColor(Color color)
-        {
-            if (propertyBlock == null) propertyBlock = new MaterialPropertyBlock();
-            propertyBlock.SetColor("_BaseColor", color);
-            propertyBlock.SetColor("_Color", color);
-            abdomen.SetPropertyBlock(propertyBlock);
-            carriedRenderer.SetPropertyBlock(propertyBlock);
         }
 
         public void RemapCardRoute(System.Func<Vector3, Vector3> remap)

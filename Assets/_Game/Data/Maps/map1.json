@@ -23,23 +23,23 @@
   "palette": [
     {
       "id": 1,
-      "hex": "#FFE359"
+      "hex": "#F7D750"
     },
     {
       "id": 2,
-      "hex": "#5CDDF7"
+      "hex": "#6AD9F1"
     },
     {
       "id": 3,
-      "hex": "#EFF3F7"
+      "hex": "#F4F0E8"
     },
     {
       "id": 4,
-      "hex": "#5C4C66"
+      "hex": "#6A586F"
     },
     {
       "id": 5,
-      "hex": "#A65143"
+      "hex": "#B8614D"
     }
   ],
   "queues": [

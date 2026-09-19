@@ -21,6 +21,7 @@ namespace ColonyFlow.Gameplay
         [SerializeField] private Transform holeJump;
         [SerializeField] private Transform holeExit;
         [SerializeField] private Renderer mapCardSurface;
+        [SerializeField] private Material colorMaterialTemplate;
         [SerializeField] private float spawnInterval = .22f;
         [SerializeField] private float antSpeed = 8;
         [SerializeField, Min(.001f)] private float layoutUnit = 1;
@@ -35,12 +36,14 @@ namespace ColonyFlow.Gameplay
         private readonly List<AntActor> pickups = new List<AntActor>();
         private readonly List<BoxActor> pendingBoxes = new List<BoxActor>();
         private ObjectPoolManager pool;
+        private SharedColorMaterialCache colorMaterials;
         private BoxActor[] slots;
         private Transform runtimeRoot;
         private GridNavigation navigation;
         private MapPerimeter perimeter;
         private Bounds cardBounds;
         private long nextTaskId;
+        private float dispatchBudget;
         private bool initialized;
         private bool initializeWhenMapEnabled;
         private bool HasCurrentSession => initialized && mapView != null && mapView.isActiveAndEnabled &&
@@ -87,6 +90,7 @@ namespace ColonyFlow.Gameplay
 
         public void ConfigureCard(Renderer surface) => mapCardSurface = surface;
         public void ConfigureSlotSurfaces(Renderer[] surfaces) => slotSurfaces = surfaces;
+        public void ConfigureColorMaterial(Material material) => colorMaterialTemplate = material;
 
         private void Start()
         {
@@ -123,6 +127,8 @@ namespace ColonyFlow.Gameplay
             navigation = new GridNavigation(mapView.Model);
             CreatePerimeter();
             CreateRuntimeRoot();
+            colorMaterials = new SharedColorMaterialCache(colorMaterialTemplate != null
+                ? colorMaterialTemplate : antPrefab.ColorMaterialTemplate);
             CreateQueues();
             RefreshQueues();
             ResetSession();
@@ -180,7 +186,8 @@ namespace ColonyFlow.Gameplay
         private BoxActor CreateBox(int queueIndex, BoxData data)
         {
             var box = pool.Spawn(boxPrefab, parent: runtimeRoot, spawnInWorldSpace: false);
-            box.Initialize(data.colorId, data.antCount, queueIndex, mapView.Model.GetColor(data.colorId), gameplayCamera, data.kind);
+            box.Initialize(data.colorId, data.antCount, queueIndex,
+                colorMaterials.Get(data.colorId, mapView.Model.GetColor(data.colorId)), gameplayCamera, data.kind);
             colliderBoxes.Add(box.HitCollider, box);
             return box;
         }
@@ -191,6 +198,7 @@ namespace ColonyFlow.Gameplay
             Paused = false;
             SpeedMultiplier = 1;
             nextTaskId = 0;
+            dispatchBudget = 1;
             IsBoardCleared = RemainingCellCount == 0;
             IsLevelComplete = IsBoardCleared;
             IsDeadlocked = false;
@@ -279,7 +287,7 @@ namespace ColonyFlow.Gameplay
             RemoveFinishedAnts();
             AdvanceSlots(dt);
             ResolvePendingBoxes();
-            if (RemainingCellCount > 0) DispatchReadyBoxes();
+            if (RemainingCellCount > 0) DispatchReadyBoxes(dt);
             RefreshLevelState();
         }
 
@@ -391,14 +399,28 @@ namespace ColonyFlow.Gameplay
 
         private bool Ready(BoxActor box) => box != null && !box.IsLanding && box.AntCount > 0 && box.Timer >= spawnInterval;
 
-        private void DispatchReadyBoxes()
+        private void DispatchReadyBoxes(float delta)
         {
-            for (int dispatch = 0; dispatch < slots.Length; dispatch++)
-            {
-                var route = FindNearestTarget(out int index);
-                if (route == null) return;
-                Spawn(index, route);
-            }
+            dispatchBudget = AccumulateDispatchBudget(dispatchBudget, delta, CountDispatchSources(), spawnInterval);
+            if (dispatchBudget < 1) return;
+            var route = FindNearestTarget(out int index);
+            if (route == null) return;
+            Spawn(index, route);
+            dispatchBudget = 0;
+        }
+
+        private int CountDispatchSources()
+        {
+            int count = 0;
+            foreach (var box in slots)
+                if (box != null && box.AntCount > 0) count++;
+            return count;
+        }
+
+        private static float AccumulateDispatchBudget(float current, float delta, int sourceCount, float interval)
+        {
+            if (delta <= 0 || sourceCount <= 0 || interval <= 0) return Mathf.Clamp01(current);
+            return Mathf.Min(1, current + delta * sourceCount / interval);
         }
 
         private TargetCandidate FindNearestTarget(out int index)
@@ -449,7 +471,8 @@ namespace ColonyFlow.Gameplay
             var returning = BuildReturn(candidate, interior, outbound[outbound.Count - 1]);
             var ant = pool.Spawn(antPrefab, parent: runtimeRoot, spawnInWorldSpace: false);
             ant.Begin(id, box, candidate.Target, SpawnPosition(index), outbound, returning,
-                holeJump.position, mapView.Model.GetColor(candidate.Target.ColorId));
+                holeJump.position, colorMaterials.Get(candidate.Target.ColorId,
+                    mapView.Model.GetColor(candidate.Target.ColorId)));
             active.Add(ant);
             box.Timer = 0;
             if (box.AntCount == 0) ReleaseBox(index);
@@ -623,6 +646,8 @@ namespace ColonyFlow.Gameplay
             slots = null;
             navigation = null;
             perimeter = null;
+            colorMaterials?.Dispose();
+            colorMaterials = null;
         }
 
         private void RecycleSession()

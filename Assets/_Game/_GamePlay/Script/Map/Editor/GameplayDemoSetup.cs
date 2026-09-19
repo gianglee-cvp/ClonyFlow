@@ -33,9 +33,12 @@ namespace ColonyFlow.Gameplay.Editor
             gameplay.Configure(map, camera, box, ant, anchors, spawns, entries, queues, returning, jumping, exit);
             gameplay.ConfigureCard(surface);
             gameplay.ConfigureSlotSurfaces(surfaces);
+            var colorMaterial = TintedMaterial(Color.white, true);
+            gameplay.ConfigureColorMaterial(colorMaterial);
             gameplay.ConfigureLayoutUnit(LayoutUnit);
             gameplay.ConfigureBoxLayout(queueColumnStep, queueRowStep);
             map.ConfigureCellSurface(surface);
+            map.ConfigureColorMaterial(colorMaterial);
         }
 
         private static bool PrepareMaterials()
@@ -52,6 +55,7 @@ namespace ColonyFlow.Gameplay.Editor
                 AssetDatabase.CreateAsset(material, path);
             }
             material.shader = shader;
+            material.enableInstancing = true;
             EditorUtility.SetDirty(material);
             font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             return true;
@@ -197,26 +201,67 @@ namespace ColonyFlow.Gameplay.Editor
             var root = new GameObject("Ant");
             root.transform.localScale = previous != null ? previous.transform.localScale : Vector3.one * 2;
             var actor = root.AddComponent<AntActor>();
+            var visual = new GameObject("Visual").transform;
+            visual.SetParent(root.transform, false);
             Color dark = Hex("#302435");
-            Primitive(root.transform, "Head", PrimitiveType.Sphere, new Vector3(0, .17f, .35f), new Vector3(.42f, .3f, .42f), dark, false);
-            Primitive(root.transform, "Thorax", PrimitiveType.Sphere, new Vector3(0, .14f, 0), new Vector3(.27f, .25f, .36f), dark, false);
-            var abdomen = Primitive(root.transform, "Abdomen", PrimitiveType.Sphere, new Vector3(0, .16f, -.4f),
+            var bodyParts = new List<MeshFilter>
+            {
+                Primitive(visual, "Head", PrimitiveType.Sphere, new Vector3(0, .17f, .35f),
+                    new Vector3(.42f, .3f, .42f), dark, false).GetComponent<MeshFilter>(),
+                Primitive(visual, "Thorax", PrimitiveType.Sphere, new Vector3(0, .14f, 0),
+                    new Vector3(.27f, .25f, .36f), dark, false).GetComponent<MeshFilter>()
+            };
+            var abdomen = Primitive(visual, "Abdomen", PrimitiveType.Sphere, new Vector3(0, .16f, -.4f),
                 new Vector3(.47f, .3f, .65f), dark, false).GetComponent<Renderer>();
             for (int i = 0; i < 3; i++)
                 for (int side = -1; side <= 1; side += 2)
                 {
-                    var leg = Primitive(root.transform, $"Leg {i} {side}", PrimitiveType.Cube,
+                    var leg = Primitive(visual, $"Leg {i} {side}", PrimitiveType.Cube,
                         new Vector3(side * .27f, .05f, .2f - i * .2f), new Vector3(.48f, .055f, .06f), dark, false);
                     leg.transform.localRotation = Quaternion.Euler(0, side * (i - 1) * 25, 0);
+                    bodyParts.Add(leg.GetComponent<MeshFilter>());
                 }
-            var brick = Primitive(root.transform, "Carried Brick", PrimitiveType.Cube, new Vector3(0, .55f, .24f),
+            CreateCombinedAntBody(visual, bodyParts, TintedMaterial(dark, true));
+            var brick = Primitive(visual, "Carried Brick", PrimitiveType.Cube, new Vector3(0, .55f, .24f),
                 new Vector3(.7f, .24f, .7f), Color.white, false);
-            actor.Configure(brick.GetComponent<Renderer>(), abdomen);
+            actor.Configure(visual, brick.GetComponent<Renderer>(), abdomen);
             actor.ConfigureJumpHeight(1.4f * LayoutUnit);
             brick.SetActive(false);
             var prefab = PrefabUtility.SaveAsPrefabAsset(root, BasePath + "Prefabs/Ant.prefab");
             UnityEngine.Object.DestroyImmediate(root);
             return prefab.GetComponent<AntActor>();
+        }
+
+        private static void CreateCombinedAntBody(Transform parent, List<MeshFilter> parts, Material bodyMaterial)
+        {
+            var combine = new CombineInstance[parts.Count];
+            for (int i = 0; i < parts.Count; i++)
+            {
+                combine[i].mesh = parts[i].sharedMesh;
+                combine[i].transform = parent.worldToLocalMatrix * parts[i].transform.localToWorldMatrix;
+            }
+            var generated = new Mesh { name = "AntBody" };
+            generated.CombineMeshes(combine, true, true, false);
+            const string path = BasePath + "Meshes/AntBody.asset";
+            Directory.CreateDirectory(BasePath + "Meshes");
+            var mesh = AssetDatabase.LoadAssetAtPath<Mesh>(path);
+            if (mesh == null)
+            {
+                mesh = generated;
+                AssetDatabase.CreateAsset(mesh, path);
+            }
+            else
+            {
+                EditorUtility.CopySerialized(generated, mesh);
+                UnityEngine.Object.DestroyImmediate(generated);
+                EditorUtility.SetDirty(mesh);
+            }
+            foreach (var part in parts) UnityEngine.Object.DestroyImmediate(part.gameObject);
+            var body = new GameObject("Ant Body");
+            body.transform.SetParent(parent, false);
+            body.AddComponent<MeshFilter>().sharedMesh = mesh;
+            ConfigurePrimitiveRenderer(body.AddComponent<MeshRenderer>(), Color.white, true);
+            body.GetComponent<MeshRenderer>().sharedMaterial = bodyMaterial;
         }
 
         private static GameObject Primitive(Transform parent, string name, PrimitiveType type, Vector3 position,
@@ -238,6 +283,9 @@ namespace ColonyFlow.Gameplay.Editor
         {
             renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             renderer.receiveShadows = false;
+            renderer.motionVectorGenerationMode = UnityEngine.MotionVectorGenerationMode.ForceNoMotion;
+            renderer.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
+            renderer.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
             renderer.sharedMaterial = TintedMaterial(color, affectedByLight);
         }
 
@@ -251,6 +299,7 @@ namespace ColonyFlow.Gameplay.Editor
                 AssetDatabase.CreateAsset(tinted, path);
             }
             tinted.shader = Shader.Find(affectedByLight ? "Universal Render Pipeline/Lit" : "Universal Render Pipeline/Unlit");
+            tinted.enableInstancing = true;
             tinted.SetColor("_BaseColor", color);
             if (affectedByLight) ConfigureSoftLit(tinted);
             EditorUtility.SetDirty(tinted);
@@ -275,8 +324,6 @@ namespace ColonyFlow.Gameplay.Editor
         public static CellView PrepareRoundedCell()
         {
             const string prefabPath = BasePath + "Prefabs/RoundedMapCell.prefab";
-            var existing = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
-            if (existing != null) return existing.GetComponent<CellView>();
             var mesh = LoadRoundedMesh();
             var cellMaterial = AssetDatabase.LoadAssetAtPath<Material>(BasePath + "Materials/MapCell.mat");
             if (mesh == null || cellMaterial == null) return null;
@@ -287,6 +334,11 @@ namespace ColonyFlow.Gameplay.Editor
             visual.AddComponent<MeshFilter>().sharedMesh = mesh;
             var renderer = visual.AddComponent<MeshRenderer>();
             renderer.sharedMaterial = cellMaterial;
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            renderer.motionVectorGenerationMode = UnityEngine.MotionVectorGenerationMode.ForceNoMotion;
+            renderer.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off;
+            renderer.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
             var size = mesh.bounds.size;
             var scale = new Vector3(1 / size.x, 1 / size.y, 1 / size.z);
             visual.transform.localScale = scale;
