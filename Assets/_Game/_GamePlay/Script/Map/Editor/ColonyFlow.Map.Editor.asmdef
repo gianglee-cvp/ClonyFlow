@@ -1,5 +1,5 @@
 {
   "name": "ColonyFlow.Map.Editor",
-  "references": ["ColonyFlow.Map", "Unity.ugui"],
+  "references": ["ColonyFlow.Map", "ColonyFlow.Game", "Unity.ugui"],
   "includePlatforms": ["Editor"]
 }

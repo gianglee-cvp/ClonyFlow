@@ -45,6 +45,7 @@ namespace ColonyFlow.Gameplay
         private long nextTaskId;
         private float dispatchBudget;
         private bool initialized;
+        private bool resultReported;
         private bool initializeWhenMapEnabled;
         private bool HasCurrentSession => initialized && mapView != null && mapView.isActiveAndEnabled &&
             mapView.Model != null && navigation != null && navigation.Map == mapView.Model && pool != null;
@@ -58,6 +59,10 @@ namespace ColonyFlow.Gameplay
         public GridNavigation Navigation => navigation;
         public IReadOnlyList<AntActor> ActiveAnts => active;
         public IReadOnlyList<BoxActor> Slots => slots;
+        public string StatusText => IsLevelComplete ? "WIN" : IsBoardCleared ? "Ants returning..." :
+            IsDeadlocked ? "No reachable color" : Paused ? "Paused" : "Bricks: " + RemainingCellCount;
+        public event Action LevelCompleted;
+        public event Action LevelFailed;
 
         public void Configure(MapView map, Camera camera, BoxActor box, AntActor ant,
             Transform[] anchors, Transform[] spawns, Transform[] entries, Transform[] queuePoints,
@@ -199,6 +204,7 @@ namespace ColonyFlow.Gameplay
             SpeedMultiplier = 1;
             nextTaskId = 0;
             dispatchBudget = 1;
+            resultReported = false;
             IsBoardCleared = RemainingCellCount == 0;
             IsLevelComplete = IsBoardCleared;
             IsDeadlocked = false;
@@ -369,6 +375,22 @@ namespace ColonyFlow.Gameplay
             if (!HasQueuedBoxes()) SpeedMultiplier = 2;
             IsDeadlocked = !IsBoardCleared && active.Count == 0 &&
                 (!HasBudgetSupply() || Array.TrueForAll(slots, b => b != null) && !HasReachableSlotTarget());
+            ReportResult();
+        }
+
+        private void ReportResult()
+        {
+            if (resultReported) return;
+            if (IsLevelComplete)
+            {
+                resultReported = true;
+                LevelCompleted?.Invoke();
+            }
+            else if (IsDeadlocked)
+            {
+                resultReported = true;
+                LevelFailed?.Invoke();
+            }
         }
 
         private bool HasBudgetSupply()
@@ -573,47 +595,11 @@ namespace ColonyFlow.Gameplay
         public void TogglePause() => Paused = !Paused;
         public void ToggleSpeed() => SpeedMultiplier = SpeedMultiplier == 1 ? 2 : 1;
 
-        private void OnGUI()
-        {
-            if (!HasCurrentSession)
-            {
-                CancelBoosterSelection();
-                return;
-            }
-            HandleGUIEvent(Event.current);
-            var matrix = GUI.matrix;
-            GUI.matrix = matrix * Matrix4x4.Scale(new Vector3(GameplayUIScale, GameplayUIScale, 1));
-            DrawBoosters();
-            DrawStatus();
-            GUI.matrix = matrix;
-        }
-
-        private bool HandleGUIEvent(Event guiEvent)
-        {
-            if (guiEvent == null || guiEvent.type == EventType.Used ||
-                guiEvent.rawType != EventType.MouseDown || guiEvent.button != 0) return false;
-            var screen = new Vector2(guiEvent.mousePosition.x, Screen.height - guiEvent.mousePosition.y);
-            if (!HandlePointer(screen)) return false;
-            guiEvent.Use();
-            return true;
-        }
-
-        private void DrawStatus()
-        {
-            string status = IsLevelComplete ? "WIN" : IsBoardCleared ? "Ants returning..." :
-                IsDeadlocked ? "No reachable color - Restart" : Paused ? "Paused" : $"Bricks: {RemainingCellCount} | x{SpeedMultiplier}";
-            GUI.Label(new Rect(12, UIHeight - 30, UIWidth - 110, 24), status);
-            if (GUI.Button(new Rect(UIWidth - 90, UIHeight - 32, 80, 26), "Restart")) Restart();
-        }
-
         public bool HandlePointer(Vector2 screen)
         {
             if (!HasCurrentSession) return false;
-            if (HandleBoosterPointer(screen)) return true;
             var vp = gameplayCamera.ScreenToViewportPoint(screen);
-            if (vp.y > .9f && vp.x < .12f) { TogglePause(); return true; }
-            if (vp.y > .9f && vp.x > .77f) { ToggleSpeed(); return true; }
-            if (screen.y <= BoosterPanelHeight || IsSelectingBlow) return false;
+            if (IsSelectingBlow) return false;
             if (vp.y <= .045f || vp.y >= .875f) return false;
             return PickBoxAt(screen);
         }

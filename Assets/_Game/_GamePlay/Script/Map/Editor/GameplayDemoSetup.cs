@@ -17,6 +17,11 @@ namespace ColonyFlow.Gameplay.Editor
 
         public static void BuildIntoScene(MapView map, Camera camera)
         {
+            BuildIntoScene(map, camera, GameplayLayoutSettings.LoadOrCreate());
+        }
+
+        public static void BuildIntoScene(MapView map, Camera camera, GameplayLayoutSettings settings)
+        {
             if (!PrepareMaterials()) return;
             SceneObjects.RemoveRoots("GameplayRoot", "ReserveSlots", "ColorButtonsArea", "Hole Rim",
                 "Map Card Frame", "Map Card Shadow");
@@ -24,11 +29,11 @@ namespace ColonyFlow.Gameplay.Editor
             var box = CreateBoxPrefab(camera);
             var ant = CreateAntPrefab();
             var root = new GameObject("GameplayRoot").transform;
-            var surface = CreateCard(root, camera);
+            var surface = CreateCard(root, camera, settings);
             var bounds = MapPerimeter.CardBounds(map.Root, surface);
-            CreateSlots(root, camera, bounds, out var anchors, out var spawns, out var entries, out var surfaces);
-            var queues = CreateQueueAnchors(root, camera);
-            CreateHole(root, camera, bounds, out var returning, out var jumping, out var exit);
+            CreateSlots(root, camera, bounds, settings, out var anchors, out var spawns, out var entries, out var surfaces);
+            var queues = CreateQueueAnchors(root, camera, settings);
+            CreateHole(root, camera, bounds, settings, out var returning, out var jumping, out var exit);
             var gameplay = root.gameObject.AddComponent<AntGameplay>();
             gameplay.Configure(map, camera, box, ant, anchors, spawns, entries, queues, returning, jumping, exit);
             gameplay.ConfigureCard(surface);
@@ -70,12 +75,12 @@ namespace ColonyFlow.Gameplay.Editor
             queueRowStep = 2 * camera.orthographicSize * .073f / Mathf.Abs(camera.transform.up.z);
         }
 
-        private static Renderer CreateCard(Transform parent, Camera camera)
+        private static Renderer CreateCard(Transform parent, Camera camera, GameplayLayoutSettings settings)
         {
             var root = new GameObject("MapCard").transform;
             root.SetParent(parent, false);
-            var bottom = ScreenWorld(camera, .04f, .515f);
-            var top = ScreenWorld(camera, .96f, .885f);
+            var bottom = ScreenWorld(camera, settings.cardViewportMin.x, settings.cardViewportMin.y);
+            var top = ScreenWorld(camera, settings.cardViewportMax.x, settings.cardViewportMax.y);
             root.localPosition = (bottom + top) * .5f + Vector3.down * (.65f * LayoutUnit);
             var size = new Vector2(top.x - bottom.x, top.z - bottom.z);
             float inset = 44 * (2 * camera.orthographicSize / 1920);
@@ -85,7 +90,7 @@ namespace ColonyFlow.Gameplay.Editor
                 new Vector3(0, .04f * LayoutUnit, 0), Hex("#F5E9D5"));
         }
 
-        private static void CreateSlots(Transform parent, Camera camera, Bounds bounds,
+        private static void CreateSlots(Transform parent, Camera camera, Bounds bounds, GameplayLayoutSettings settings,
             out Transform[] anchors, out Transform[] spawns, out Transform[] entries, out Renderer[] surfaces)
         {
             var root = new GameObject("ActiveSlots").transform;
@@ -98,7 +103,9 @@ namespace ColonyFlow.Gameplay.Editor
             {
                 var slot = new GameObject($"Slot {i}").transform;
                 slot.SetParent(root, false);
-                var position = ScreenWorld(camera, .5f + (i - 1.5f) * .1525f, .355f);
+                var position = ScreenWorld(camera,
+                    settings.slotCenterViewport.x + (i - 1.5f) * settings.slotHorizontalSpacing,
+                    settings.slotCenterViewport.y);
                 anchors[i] = Point(slot, "BoxAnchor", position);
                 spawns[i] = Point(slot, "AntSpawnPoint", position + Vector3.forward * (boxDepth * .5f));
                 entries[i] = Point(slot, "PerimeterEntry",
@@ -108,22 +115,24 @@ namespace ColonyFlow.Gameplay.Editor
             }
         }
 
-        private static Transform[] CreateQueueAnchors(Transform parent, Camera camera)
+        private static Transform[] CreateQueueAnchors(Transform parent, Camera camera, GameplayLayoutSettings settings)
         {
             var root = new GameObject("BoxQueues").transform;
             root.SetParent(parent, false);
             var anchors = new Transform[3];
             for (int i = 0; i < anchors.Length; i++)
-                anchors[i] = Point(root, $"Queue {i} Anchor", ScreenWorld(camera, .36f + i * .14f, .263f));
+                anchors[i] = Point(root, $"Queue {i} Anchor", ScreenWorld(camera,
+                    settings.queueCenterViewport.x + (i - 1) * settings.queueHorizontalSpacing,
+                    settings.queueCenterViewport.y));
             return anchors;
         }
 
-        private static void CreateHole(Transform parent, Camera camera, Bounds bounds,
+        private static void CreateHole(Transform parent, Camera camera, Bounds bounds, GameplayLayoutSettings settings,
             out Transform returning, out Transform jumping, out Transform exit)
         {
             var root = new GameObject("AntHole").transform;
             root.SetParent(parent, false);
-            var position = ScreenWorld(camera, .5f, .445f);
+            var position = ScreenWorld(camera, settings.holeViewport.x, settings.holeViewport.y);
             float width = 2 * camera.orthographicSize * 1080 / 1920;
             Primitive(root, "Hole Rim", PrimitiveType.Cylinder, position + Vector3.down * (.25f * LayoutUnit),
                 new Vector3(width * .12f, .045f, width * .075f) / LayoutUnit, Hex("#B98243"), false, false);

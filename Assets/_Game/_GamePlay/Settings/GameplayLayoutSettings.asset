@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 24fc3b1e3c6bb5f4485fa671e61db7e9, type: 3}
+  m_Name: GameplayLayoutSettings
+  m_EditorClassIdentifier: ColonyFlow.Map.Editor::ColonyFlow.Gameplay.Editor.GameplayLayoutSettings
+  cameraPosition: {x: 0, y: 56.56854, z: -60.33054}
+  cameraRotation: {x: 60, y: 0, z: 0}
+  orthographicSize: 9
+  nearClipPlane: 0.3
+  farClipPlane: 300
+  holeViewport: {x: 0.5, y: 0.46}
+  slotCenterViewport: {x: 0.5, y: 0.355}
+  slotHorizontalSpacing: 0.2
+  queueCenterViewport: {x: 0.5, y: 0.263}
+  queueHorizontalSpacing: 0.14
+  cardViewportMin: {x: 0.04, y: 0.515}
+  cardViewportMax: {x: 0.96, y: 0.885}
