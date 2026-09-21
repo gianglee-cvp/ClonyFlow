@@ -445,33 +445,53 @@ namespace ColonyFlow.Gameplay
             return Mathf.Min(1, current + delta * sourceCount / interval);
         }
 
+        private sealed class TargetAssignment
+        {
+            public int SlotIndex;
+            public TargetCandidate Candidate;
+            public float Distance;
+        }
+
         private TargetCandidate FindNearestTarget(out int index)
         {
             index = -1;
-            float shortest = float.PositiveInfinity;
-            TargetCandidate route = null;
+            var assignments = new List<TargetAssignment>();
             foreach (var cell in mapView.Model.EnumerateCells())
             {
-                if (cell.IsEmpty || reserves.ContainsKey(cell) || !HasReadyColor(cell.ColorId) || !navigation.CanReach(cell)) continue;
+                if (cell.IsEmpty || reserves.ContainsKey(cell) || !navigation.CanReach(cell)) continue;
                 for (int i = 0; i < slots.Length; i++)
                 {
-                    if (!Ready(slots[i]) || slots[i].ColorId != cell.ColorId) continue;
+                    var box = slots[i];
+                    if (box == null || box.AntCount <= 0 || box.ColorId != cell.ColorId) continue;
                     var candidate = navigation.EvaluateFrom(cell, perimeter, perimeterEntries[i].position, 1.1f * layoutUnit);
                     if (candidate == null) continue;
                     float distance = Vector3.Distance(SpawnPosition(i), Walking(perimeterEntries[i].position)) + candidate.TravelDistance;
-                    if (distance >= shortest - .0001f) continue;
-                    shortest = distance;
-                    index = i;
-                    route = candidate;
+                    assignments.Add(new TargetAssignment { SlotIndex = i, Candidate = candidate, Distance = distance });
                 }
             }
-            return route;
+
+            assignments.Sort(CompareAssignments);
+            var assignedSlots = new bool[slots.Length];
+            var assignedTargets = new HashSet<Cell>();
+            foreach (var assignment in assignments)
+            {
+                if (assignedSlots[assignment.SlotIndex] || assignedTargets.Contains(assignment.Candidate.Target)) continue;
+                assignedSlots[assignment.SlotIndex] = true;
+                assignedTargets.Add(assignment.Candidate.Target);
+                if (!Ready(slots[assignment.SlotIndex])) continue;
+                index = assignment.SlotIndex;
+                return assignment.Candidate;
+            }
+            return null;
         }
 
-        private bool HasReadyColor(int colorId)
+        private static int CompareAssignments(TargetAssignment a, TargetAssignment b)
         {
-            foreach (var box in slots) if (Ready(box) && box.ColorId == colorId) return true;
-            return false;
+            if (Mathf.Abs(a.Distance - b.Distance) > .0001f) return a.Distance.CompareTo(b.Distance);
+            int slot = a.SlotIndex.CompareTo(b.SlotIndex);
+            if (slot != 0) return slot;
+            int row = b.Candidate.Target.Row.CompareTo(a.Candidate.Target.Row);
+            return row != 0 ? row : a.Candidate.Target.Column.CompareTo(b.Candidate.Target.Column);
         }
 
         private Vector3 Walking(Vector3 point)
@@ -522,10 +542,14 @@ namespace ColonyFlow.Gameplay
             if (candidate.DirectBorderAccess) points.Add(pickup);
             for (int i = interior.Count - 1; i >= 0; i--) points.Add(Walking(perimeter.CellPoint(interior[i])));
             points.Add(Walking(candidate.EntryPoint));
-            var approach = HoleApproachPoint(candidate.EntryPoint);
-            AppendPerimeter(points, candidate.EntryPoint, approach);
+            var approach = candidate.EntryPoint;
+            if (!perimeter.IsBottomEdge(candidate.EntryPoint))
+            {
+                approach = HoleApproachPoint(candidate.EntryPoint);
+                AppendPerimeter(points, candidate.EntryPoint, approach);
+            }
             var hole = Walking(holeReturn.position);
-            points.Add(hole + (approach - hole).normalized * (holeJumpDistance * layoutUnit));
+            points.Add(hole + (Walking(approach) - hole).normalized * (holeJumpDistance * layoutUnit));
             return points;
         }
 

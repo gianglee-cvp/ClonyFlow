@@ -1,13 +1,16 @@
+using System.Collections;
 using UnityEngine;
 
 namespace ColonyFlow.Gameplay
 {
-    public enum GameFlowState { Menu, Playing, Win, Lose }
+    public enum GameFlowState { Menu, Loading, Playing, Win, Lose }
 
     public sealed class GameManager : Singleton<GameManager>
     {
         public GameFlowState State { get; private set; }
+        private const float MinimumLoadingDuration = 2f;
         private AntGameplay subscribedGameplay;
+        private Coroutine loadingRoutine;
 
         private void Start() => Init();
 
@@ -36,6 +39,11 @@ namespace ColonyFlow.Gameplay
 
         public void ShowMenu()
         {
+            if (loadingRoutine != null)
+            {
+                StopCoroutine(loadingRoutine);
+                loadingRoutine = null;
+            }
             State = GameFlowState.Menu;
             LevelManager.Instance.StopLevel();
             UIManager.Instance.CloseAllUI();
@@ -44,14 +52,37 @@ namespace ColonyFlow.Gameplay
 
         public void PlayCurrentLevel()
         {
+            if (loadingRoutine == null) loadingRoutine = StartCoroutine(LoadCurrentLevelRoutine());
+        }
+
+        private IEnumerator LoadCurrentLevelRoutine()
+        {
+            State = GameFlowState.Loading;
             UIManager.Instance.CloseAllUI();
-            if (!LevelManager.Instance.LoadCurrentLevel())
+            var loading = UIManager.Instance.OpenUI<CanvasLoading>();
+            float startedAt = Time.unscaledTime;
+            yield return null;
+
+            while (Time.unscaledTime - startedAt < MinimumLoadingDuration)
+            {
+                float progress = (Time.unscaledTime - startedAt) / MinimumLoadingDuration;
+                loading?.SetProgress(progress * .95f);
+                yield return null;
+            }
+            bool loaded = LevelManager.Instance.LoadCurrentLevel();
+            loading?.SetProgress(1);
+            yield return null;
+            loadingRoutine = null;
+
+            if (!loaded)
             {
                 ShowMenu();
-                return;
+                yield break;
             }
+
             State = GameFlowState.Playing;
             SubscribeGameplay();
+            UIManager.Instance.CloseAllUI();
             UIManager.Instance.OpenUI<CanvasGamePlay>();
         }
 

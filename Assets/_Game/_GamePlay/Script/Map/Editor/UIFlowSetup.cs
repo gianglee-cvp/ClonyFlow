@@ -48,6 +48,7 @@ namespace ColonyFlow.Gameplay.Editor
             font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             ConfigureMenuBackground();
             CreateMenuPrefab();
+            CreateLoadingPrefab();
             CreateGameplayPrefab();
             CreateSettingPrefab();
             CreateWinPrefab();
@@ -163,6 +164,39 @@ namespace ColonyFlow.Gameplay.Editor
             outline.effectDistance = distance;
         }
 
+        private static void CreateLoadingPrefab()
+        {
+            var canvas = CanvasRoot<CanvasLoading>("CanvasLoading");
+            Panel(canvas.transform, "Background", Vector2.zero, Vector2.one, Hex("#59CBE8"), true);
+
+            var character = Rect(canvas.transform, "Loading Character", new Vector2(.24f, .36f), new Vector2(.76f, .72f));
+            var characterImage = character.gameObject.AddComponent<Image>();
+            characterImage.sprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/_Game/GUI/Loading/Img-Char#1_Loading.png");
+            characterImage.preserveAspect = true;
+            characterImage.raycastTarget = false;
+
+            var spinner = Rect(canvas.transform, "Spinner", new Vector2(.43f, .25f), new Vector2(.57f, .33f));
+            var spinnerImage = spinner.gameObject.AddComponent<Image>();
+            spinnerImage.sprite = AssetDatabase.LoadAssetAtPath<Sprite>("Assets/_Game/GUI/Loading/MOVE.png");
+            spinnerImage.preserveAspect = true;
+            spinnerImage.raycastTarget = false;
+
+            Text loadingText = Label(canvas.transform, "Loading Text", "LOADING", new Vector2(.18f, .17f), new Vector2(.82f, .24f), 42, Color.white);
+            AddOutline(loadingText, Hex("#245273"), new Vector2(3, -3));
+
+            var progressBar = Panel(canvas.transform, "Progress Bar", new Vector2(.14f, .10f), new Vector2(.86f, .14f), Hex("#245273"), false);
+            var fillRect = Panel(progressBar, "Progress Fill", new Vector2(.02f, .16f), new Vector2(.98f, .84f), Hex("#F7D750"), false);
+            var progressFill = fillRect.GetComponent<Image>();
+            progressFill.type = Image.Type.Filled;
+            progressFill.fillMethod = Image.FillMethod.Horizontal;
+            progressFill.fillOrigin = 0;
+            progressFill.fillAmount = 0;
+
+            Set(canvas, "loadingText", loadingText);
+            Set(canvas, "progressFill", progressFill);
+            Set(canvas, "spinner", spinner);
+            Save(canvas.gameObject, "CanvasLoading");
+        }
         private static void CreateGameplayPrefab()
         {
             var canvas = CanvasRoot<CanvasGamePlay>("CanvasGamePlay");

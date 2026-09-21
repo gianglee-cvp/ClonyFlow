@@ -32,6 +32,11 @@ namespace ColonyFlow.Gameplay
             return new Bounds((min + max) * .5f, max - min);
         }
         public Vector3 BottomEntry(float localX) => root.TransformPoint(new Vector3(Mathf.Clamp(localX, minX, maxX), 0, minZ));
+        public bool IsBottomEdge(Vector3 world)
+        {
+            var point = root.InverseTransformPoint(world);
+            return Mathf.Abs(point.z - minZ) < .02f && point.x >= minX - .02f && point.x <= maxX + .02f;
+        }
         public Vector3 CellPoint(Cell cell) => root.TransformPoint(cell.Position);
         public Vector3 RemapFrom(Vector3 world, Bounds old)
         {
