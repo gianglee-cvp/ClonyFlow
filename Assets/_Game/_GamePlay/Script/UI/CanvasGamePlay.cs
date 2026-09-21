@@ -12,10 +12,12 @@ namespace ColonyFlow.Gameplay
         [SerializeField] private Text selectionText;
         [SerializeField] private Button pauseButton;
         [SerializeField] private Button speedButton;
-        [SerializeField] private Button restartButton;
         [SerializeField] private Button addSlotButton;
+        [SerializeField] private CanvasGroup addSlotButtonGroup;
         [SerializeField] private Button pickupButton;
+        [SerializeField] private CanvasGroup pickupButtonGroup;
         [SerializeField] private Button blowButton;
+        [SerializeField] private CanvasGroup blowButtonGroup;
         [SerializeField] private Button cancelButton;
         [SerializeField] private GameObject selectionPanel;
         [SerializeField] private GameplayPointerSurface pointerSurface;
@@ -29,22 +31,21 @@ namespace ColonyFlow.Gameplay
         public override void Setup()
         {
             base.Setup();
-            ConfigureScreenSpaceCamera();
             gameplay = LevelManager.Instance.Gameplay;
+            if (addSlotButtonGroup == null && addSlotButton != null)
+                addSlotButtonGroup = addSlotButton.GetComponent<CanvasGroup>();
+            if (pickupButtonGroup == null && pickupButton != null)
+                pickupButtonGroup = pickupButton.GetComponent<CanvasGroup>();
+            if (blowButtonGroup == null && blowButton != null)
+                blowButtonGroup = blowButton.GetComponent<CanvasGroup>();
+            if (levelText == null)
+                levelText = transform.Find("Level Text")?.GetComponent<Text>();
+            if (levelText != null) levelText.gameObject.SetActive(true);
+            var obsoleteRestart = transform.Find("Restart Button");
+            if (obsoleteRestart != null) obsoleteRestart.gameObject.SetActive(false);
             WireButtons();
             if (pointerSurface != null) pointerSurface.Configure(this);
             RefreshState();
-        }
-
-        private void ConfigureScreenSpaceCamera()
-        {
-            var canvas = GetComponent<Canvas>();
-            if (canvas == null) return;
-            canvas.renderMode = RenderMode.ScreenSpaceCamera;
-            canvas.worldCamera = Camera.main;
-            if (canvas.worldCamera != null)
-                canvas.planeDistance = Mathf.Clamp(100f, canvas.worldCamera.nearClipPlane + .01f,
-                    canvas.worldCamera.farClipPlane - .01f);
         }
 
         private void Update() => RefreshState();
@@ -54,7 +55,6 @@ namespace ColonyFlow.Gameplay
             if (wired) return;
             AddListener(pauseButton, ButtonPause);
             AddListener(speedButton, ButtonSpeed);
-            AddListener(restartButton, ButtonRestart);
             AddListener(addSlotButton, ButtonAddSlot);
             AddListener(pickupButton, ButtonPickup);
             AddListener(blowButton, ButtonBlow);
@@ -78,12 +78,17 @@ namespace ColonyFlow.Gameplay
             if (levelText != null) levelText.text = "Level " + LevelManager.Instance.CurrentLevel;
             if (statusText != null) statusText.text = gameplay.StatusText;
             if (speedText != null) speedText.text = "x" + gameplay.SpeedMultiplier;
-            if (addSlotButton != null) addSlotButton.interactable = gameplay.CanAddSlot;
-            if (pickupButton != null) pickupButton.interactable = gameplay.CanPickupBooster;
-            if (blowButton != null) blowButton.interactable = gameplay.CanBlowBooster;
+            SetButtonState(addSlotButton, addSlotButtonGroup, gameplay.CanAddSlot);
+            SetButtonState(pickupButton, pickupButtonGroup, gameplay.CanPickupBooster);
+            SetButtonState(blowButton, blowButtonGroup, gameplay.CanBlowBooster);
             RefreshSelection();
         }
 
+        private static void SetButtonState(Button button, CanvasGroup group, bool interactable)
+        {
+            if (button != null) button.interactable = interactable;
+            if (group != null) group.alpha = interactable ? 1f : .4f;
+        }
         private void RefreshSelection()
         {
             bool selecting = gameplay.IsSelectingPickup || gameplay.IsSelectingBlow;
@@ -104,9 +109,13 @@ namespace ColonyFlow.Gameplay
         }
 
         public void HandleWorldPointer(Vector2 screenPosition) => gameplay?.HandlePointer(screenPosition);
-        public void ButtonPause() => gameplay?.TogglePause();
+        public void ButtonPause()
+        {
+            if (gameplay == null) return;
+            if (!gameplay.Paused) gameplay.TogglePause();
+            UIManager.Instance.OpenUI<CanvasSetting>();
+        }
         public void ButtonSpeed() => gameplay?.ToggleSpeed();
-        public void ButtonRestart() => GameManager.Instance.RestartLevel();
         public void ButtonAddSlot() => gameplay?.AddSlot();
         public void ButtonPickup() => gameplay?.BeginPickupSelection();
         public void ButtonBlow() => gameplay?.BeginBlowSelection();

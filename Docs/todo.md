@@ -22,13 +22,13 @@
 - [x] Viết công thức vị trí theo viên đầu tiên, hàng/cột và spacing.
 - [x] Viết CellView tô màu riêng từng Renderer.
 - [x] Viết spawn bằng Instantiate, bỏ qua Cell 0.
-- [x] Viết áp camera position/rotation từ JSON.
+- [x] Trước đây áp camera từ JSON; demo cố định hiện tại đã bỏ cơ chế này, camera bake tại Editor.
 - [x] Viết Clear bằng Destroy và reload thay thế map cũ.
 - [x] Tạo JSON mẫu.
 - [x] Viết công cụ Editor tạo/mở prefab, material và scene MapDemo.
 - [x] Thêm bộ EditMode tests và kiểm tra biên dịch C#.
 - [ ] Người dùng tạo/mở demo bằng menu ColonyFlow → Map → Open or Create Demo.
-- [ ] Người dùng kiểm tra Play Mode: 21 viên, đúng màu/vị trí/camera, reload không nhân đôi.
+- [ ] Người dùng kiểm tra Play Mode: map hiện tại 201 viên, đúng màu/vị trí/camera, reload không nhân đôi.
 - [ ] Kiểm tra JSON lỗi không làm mất map đang hoạt động.
 - [ ] Chạy kiểm tra logic và nghiệm thu hiển thị trong Unity.
 - [x] Ghi kết quả biên dịch và các hạn chế kiểm tra hiện tại vào progress.md.
@@ -36,26 +36,26 @@
 
 ## MAP-PATH — Tìm đường và cập nhật Map
 
-- [ ] Chốt các giả định pathfinding/gameplay còn lại trước khi code phần tương ứng.
-- [ ] Tính weight/previousCell và tìm borderCell.
-- [ ] Cập nhật Map sau khi lấy Cell.
+- [x] Chốt coordinate contract, navigation/access weight, ready-first và anchor cho demo Normal Box.
+- [x] Navigation weight cho None, accessWeight cho target, borderCell và interior route.
+- [x] Collect đổi None, cập nhật navigation và ẩn mesh.
 
 ## QUEUE — Hàng đợi và Box
 
-- [ ] Queue và pick Normal Box.
+- [x] Queue và pick Normal Box vào Slot; cấu hình demo theo số gạch từng màu.
 
 ## SLOT — Slot gameplay
 
-- [ ] Năm Slot cố định và quy tắc ô trống đầu tiên.
+- [x] Năm Slot cố định, ô trống đầu tiên và PerimeterEntry đặt sẵn.
 
 ## ANT — Kiến và lấy Cell
 
-- [ ] Reserve mục tiêu, spawn Ant và giới hạn in-flight.
-- [ ] Di chuyển Ant quanh map và lấy Cell.
+- [x] Reserve mục tiêu, ready-first spawn, outgoingCount và pickup theo taskId.
+- [x] Kiến đi chu vi, vào ô trống nhặt gạch, mang về hố và nhảy xuống.
 
 ## LEVEL — Vòng đời màn và nghiệm thu demo
 
-- [ ] Refresh, Win/Lose, x2 và Restart.
+- [x] Refresh, deferred Win, deadlock cơ bản, Pause/x2 và Restart cho demo Normal Box.
 - [ ] Nghiệm thu demo chơi được từ đầu tới cuối.
 
 ## POOL — Pooling
@@ -103,3 +103,22 @@
 - [ ] Kiểm tra và nghiệm thu phần này.
 - [ ] Cập nhật kết quả trong progress.md.
 ```
+
+## DEMO-ANT — Nghiệm thu trực tiếp
+
+Kế hoạch: [AntGameplayPlan](Plans/AntGameplayPlan.md).
+
+- [x] Chốt coordinate contract, ready-first scheduler và giới hạn camera/map.
+- [x] Unity batch kiểm tra toàn map 201 gạch và các ca concurrency/navigation.
+- [x] Render preview kiến/Box 3D.
+- [ ] Người dùng mở lại MapDemo, chọn Game View 9:16 và Play.
+- [ ] Kiểm tra click Box đầu queue, Pause, Speed và Restart.
+- [ ] Nghiệm thu hình ảnh, tốc độ và chuyến đi thực tế trên thiết bị.
+- [ ] Hidden/Stick, booster và popup Win/Lose ở giai đoạn sau.
+
+- [x] SLOT/QUEUE: sửa migration scene cũ khi Play; kiểm tra Slot trống và screen-pointer raycast pick đầu queue.
+
+- [x] ANT: bỏ pooling khỏi gameplay, để core pool ở giai đoạn sau.
+- [x] MAP-PATH: rìa gần nhất, ưu tiên ít rẽ, perimeter đúng mép Ground; Unity batch đạt.
+
+- [x] QUEUE: JSON cấu hình thứ tự Box, loader runtime và scene đã gán file mẫu; Unity batch đạt.
