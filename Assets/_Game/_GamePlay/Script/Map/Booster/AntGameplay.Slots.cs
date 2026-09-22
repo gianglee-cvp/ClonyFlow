@@ -28,6 +28,7 @@ namespace ColonyFlow.Gameplay
                 if (slots[i] != null) slots[i].JumpToSlot(boxAnchors[i].position, layoutUnit);
             RefreshEntries();
             RefreshLevelState();
+            BoosterUsed?.Invoke();
             return true;
         }
 

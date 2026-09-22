@@ -134,8 +134,10 @@ namespace ColonyFlow.Gameplay.Editor
             root.SetParent(parent, false);
             var position = ScreenWorld(camera, settings.holeViewport.x, settings.holeViewport.y);
             float width = 2 * camera.orthographicSize * 1080 / 1920;
-            Primitive(root, "Hole Rim", PrimitiveType.Cylinder, position + Vector3.down * (.25f * LayoutUnit),
+            var rim = Primitive(root, "Hole Rim", PrimitiveType.Cylinder, position + Vector3.down * (.25f * LayoutUnit),
                 new Vector3(width * .12f, .045f, width * .075f) / LayoutUnit, Hex("#B98243"), false, false);
+            var rimCollider = rim.AddComponent<MeshCollider>();
+            rimCollider.sharedMesh = rim.GetComponent<MeshFilter>().sharedMesh;
             Primitive(root, "Dark Hole", PrimitiveType.Cylinder, position + Vector3.down * (.1f * LayoutUnit),
                 new Vector3(width * .105f, .05f, width * .063f) / LayoutUnit, Hex("#59341C"), false, false);
             returning = Point(root, "ReturnPoint", position);

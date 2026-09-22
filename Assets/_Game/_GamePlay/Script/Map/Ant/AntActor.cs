@@ -5,7 +5,7 @@ using ColonyFlow.Core.Pooling;
 
 namespace ColonyFlow.Gameplay
 {
-    public enum AntTripState { Inactive, Outbound, WaitingPickup, Returning, Jumping }
+    public enum AntTripState { Inactive, Outbound, PickingUp, WaitingPickup, Returning, Jumping }
 
     public sealed class AntActor : MonoBehaviour, IPoolable
     {
@@ -15,8 +15,12 @@ namespace ColonyFlow.Gameplay
         [SerializeField] private Renderer abdomen;
         [SerializeField] private float jumpHeight = 1.4f;
         [SerializeField, Min(.01f)] private float jumpDuration = .55f;
+        [SerializeField, Min(0f)] private float pickupAnimationDuration = .25f;
         [SerializeField, Min(1)] private float jumpScaleMultiplier = 1.25f;
+        [SerializeField, Min(0f)] private float holeAvoidanceOffset = .2f;
+        [SerializeField, Min(0f)] private float holeTurnLeadDistance = 1.2f;
         private ActorAnimation animation;
+        private ProceduralAntAnimation proceduralAnimation;
         private Vector3 initialScale;
         private Transform carriedTransform;
         private Transform carryParent;
@@ -26,12 +30,15 @@ namespace ColonyFlow.Gameplay
         private Vector3 jumpTarget;
         private Vector3 carryLocalPosition, pickupPosition;
         private float pickupTime;
+        private float pickupAnimationTime;
         public long TaskId { get; private set; }
         public int ColorId { get; private set; }
         public Cell Target { get; private set; }
         public BoxActor Source { get; private set; }
         public AntTripState State { get; private set; }
         public Material ColorMaterialTemplate => abdomen != null ? abdomen.sharedMaterial : null;
+        public float HoleAvoidanceOffset => holeAvoidanceOffset;
+        public float HoleTurnLeadDistance => holeTurnLeadDistance;
 
         private void Awake()
         {
@@ -40,6 +47,7 @@ namespace ColonyFlow.Gameplay
 
         private void EnsureCachedState()
         {
+            if (proceduralAnimation == null) proceduralAnimation = GetComponent<ProceduralAntAnimation>();
             if (animation != null) return;
             initialScale = transform.localScale;
             animation = new ActorAnimation(gameObject);
@@ -58,6 +66,7 @@ namespace ColonyFlow.Gameplay
         private void ResetTrip()
         {
             animation?.Cancel();
+            proceduralAnimation?.ResetPose();
             TaskId = 0;
             ColorId = 0;
             Source = null;
@@ -66,6 +75,7 @@ namespace ColonyFlow.Gameplay
             returnRoute = null;
             waypoint = 0;
             pickupTime = .2f;
+            pickupAnimationTime = 0;
             State = AntTripState.Inactive;
             transform.localScale = initialScale;
             if (visualRoot != null) visualRoot.localPosition = Vector3.zero;
@@ -112,8 +122,10 @@ namespace ColonyFlow.Gameplay
             transform.localScale = initialScale;
             jumpTarget = jump;
             pickupTime = .2f;
+            pickupAnimationTime = 0;
             transform.position = spawn;
             State = AntTripState.Outbound;
+            proceduralAnimation?.SetWalking(false);
             carriedBrick.SetActive(false);
             if (colorMaterial != null)
             {
@@ -148,6 +160,7 @@ namespace ColonyFlow.Gameplay
             route = returnRoute;
             waypoint = 0;
             State = AntTripState.Returning;
+            proceduralAnimation?.SetWalking(true);
         }
 
         private void SetCarryScale(Vector3 worldScale)
@@ -159,6 +172,7 @@ namespace ColonyFlow.Gameplay
 
         public void Advance(float delta, float speed)
         {
+            proceduralAnimation?.Advance(delta);
             AdvanceTrip(delta, speed);
             AdvancePickup(delta);
         }
@@ -175,9 +189,24 @@ namespace ColonyFlow.Gameplay
         private void AdvanceTrip(float delta, float speed)
         {
             if (State == AntTripState.Inactive || State == AntTripState.WaitingPickup) return;
+            if (State == AntTripState.PickingUp)
+            {
+                pickupAnimationTime += delta;
+                if (pickupAnimationTime >= pickupAnimationDuration)
+                {
+                    State = AntTripState.WaitingPickup;
+                    proceduralAnimation?.SetIdle();
+                }
+                return;
+            }
             if (State == AntTripState.Jumping) { animation.Advance(delta); return; }
             if (!WalkRoute(delta * speed)) return;
-            if (State == AntTripState.Outbound) State = AntTripState.WaitingPickup;
+            if (State == AntTripState.Outbound)
+            {
+                State = AntTripState.PickingUp;
+                pickupAnimationTime = 0;
+                proceduralAnimation?.SetPickingUp();
+            }
             else BeginJump();
         }
 
@@ -190,6 +219,7 @@ namespace ColonyFlow.Gameplay
         private void BeginJump()
         {
             State = AntTripState.Jumping;
+            proceduralAnimation?.SetJumping();
             FaceDirection(jumpTarget - transform.position);
             var jump = DOTween.Sequence()
                 .Append(transform.DOJump(jumpTarget, jumpHeight, 1, jumpDuration).SetEase(Ease.Linear))
@@ -232,6 +262,7 @@ namespace ColonyFlow.Gameplay
         public void Cancel()
         {
             animation?.Cancel();
+            proceduralAnimation?.ResetPose();
             State = AntTripState.Inactive;
             Source = null;
             Target = null;

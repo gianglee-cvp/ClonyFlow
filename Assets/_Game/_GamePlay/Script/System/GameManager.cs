@@ -11,6 +11,7 @@ namespace ColonyFlow.Gameplay
         private const float MinimumLoadingDuration = 2f;
         private AntGameplay subscribedGameplay;
         private Coroutine loadingRoutine;
+        private AudioManager audioManager;
 
         private void Start() => Init();
 
@@ -18,6 +19,9 @@ namespace ColonyFlow.Gameplay
         {
             UIManager.Instance.OnInit();
             LevelManager.Instance.Init();
+            audioManager = GetComponent<AudioManager>();
+            if (audioManager == null) audioManager = gameObject.AddComponent<AudioManager>();
+            audioManager.Init();
             SubscribeGameplay();
             ShowMenu();
         }
@@ -26,15 +30,25 @@ namespace ColonyFlow.Gameplay
         {
             var gameplay = LevelManager.Instance.Gameplay;
             if (gameplay == subscribedGameplay) return;
-            if (subscribedGameplay != null)
-            {
-                subscribedGameplay.LevelCompleted -= OnLevelCompleted;
-                subscribedGameplay.LevelFailed -= OnLevelFailed;
-            }
+            UnsubscribeGameplay();
             subscribedGameplay = gameplay;
             if (subscribedGameplay == null) return;
             subscribedGameplay.LevelCompleted += OnLevelCompleted;
             subscribedGameplay.LevelFailed += OnLevelFailed;
+            subscribedGameplay.BoxSelected += OnBoxSelected;
+            subscribedGameplay.AntPickupCompleted += OnAntPickupCompleted;
+            subscribedGameplay.BoosterUsed += OnBoosterUsed;
+        }
+
+        private void UnsubscribeGameplay()
+        {
+            if (subscribedGameplay == null) return;
+            subscribedGameplay.LevelCompleted -= OnLevelCompleted;
+            subscribedGameplay.LevelFailed -= OnLevelFailed;
+            subscribedGameplay.BoxSelected -= OnBoxSelected;
+            subscribedGameplay.AntPickupCompleted -= OnAntPickupCompleted;
+            subscribedGameplay.BoosterUsed -= OnBoosterUsed;
+            subscribedGameplay = null;
         }
 
         public void ShowMenu()
@@ -45,6 +59,8 @@ namespace ColonyFlow.Gameplay
                 loadingRoutine = null;
             }
             State = GameFlowState.Menu;
+            audioManager?.SetMusicDucked(false);
+            audioManager?.PlayMusic(AudioCue.MenuMusic);
             LevelManager.Instance.StopLevel();
             UIManager.Instance.CloseAllUI();
             UIManager.Instance.OpenUI<CanvasMenu>();
@@ -58,6 +74,8 @@ namespace ColonyFlow.Gameplay
         private IEnumerator LoadCurrentLevelRoutine()
         {
             State = GameFlowState.Loading;
+            audioManager?.SetMusicDucked(false);
+            audioManager?.PlayMusic(AudioCue.MenuMusic);
             UIManager.Instance.CloseAllUI();
             var loading = UIManager.Instance.OpenUI<CanvasLoading>();
             float startedAt = Time.unscaledTime;
@@ -82,6 +100,7 @@ namespace ColonyFlow.Gameplay
 
             State = GameFlowState.Playing;
             SubscribeGameplay();
+            audioManager?.PlayMusic(AudioCue.GameplayMusic);
             UIManager.Instance.CloseAllUI();
             UIManager.Instance.OpenUI<CanvasGamePlay>();
         }
@@ -96,6 +115,7 @@ namespace ColonyFlow.Gameplay
             bool hasNext = LevelManager.Instance.HasNextLevel;
             LevelManager.Instance.CompleteCurrentLevel();
             State = GameFlowState.Win;
+            audioManager?.PlaySfx(AudioCue.Win);
             UIManager.Instance.CloseAllUI();
             var canvas = UIManager.Instance.OpenUI<CanvasWin>();
             canvas?.Init(completedLevel, hasNext);
@@ -105,17 +125,18 @@ namespace ColonyFlow.Gameplay
         {
             if (State != GameFlowState.Playing) return;
             State = GameFlowState.Lose;
+            audioManager?.PlaySfx(AudioCue.Lose);
             UIManager.Instance.CloseAllUI();
             UIManager.Instance.OpenUI<CanvasLose>();
         }
 
+        private void OnBoxSelected() => audioManager?.PlaySfx(AudioCue.BoxSelected);
+        private void OnAntPickupCompleted() => audioManager?.PlaySfx(AudioCue.AntPickup);
+        private void OnBoosterUsed() => audioManager?.PlaySfx(AudioCue.Booster);
+
         protected override void OnDestroy()
         {
-            if (subscribedGameplay != null)
-            {
-                subscribedGameplay.LevelCompleted -= OnLevelCompleted;
-                subscribedGameplay.LevelFailed -= OnLevelFailed;
-            }
+            UnsubscribeGameplay();
             base.OnDestroy();
         }
     }

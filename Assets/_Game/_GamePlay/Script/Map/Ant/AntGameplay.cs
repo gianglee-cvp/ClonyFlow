@@ -20,11 +20,13 @@ namespace ColonyFlow.Gameplay
         [SerializeField] private Transform holeReturn;
         [SerializeField] private Transform holeJump;
         [SerializeField] private Transform holeExit;
+        [SerializeField] private Collider holeObstacle;
         [SerializeField] private Renderer mapCardSurface;
         [SerializeField] private Material colorMaterialTemplate;
         [SerializeField] private float spawnInterval = .22f;
         [SerializeField] private float antSpeed = 8;
         [SerializeField, Min(.001f)] private float layoutUnit = 1;
+        [SerializeField, Min(.1f)] private float pickupApproachDistance = 1.6f;
         [SerializeField] private float queueColumnStep = 1.57f;
         [SerializeField] private float queueRowStep = 1.86f;
         [SerializeField, Min(.01f)] private float holeApproachDistance = 12;
@@ -63,6 +65,9 @@ namespace ColonyFlow.Gameplay
             IsDeadlocked ? "No reachable color" : Paused ? "Paused" : "Bricks: " + RemainingCellCount;
         public event Action LevelCompleted;
         public event Action LevelFailed;
+        public event Action BoxSelected;
+        public event Action AntPickupCompleted;
+        public event Action BoosterUsed;
 
         public void Configure(MapView map, Camera camera, BoxActor box, AntActor ant,
             Transform[] anchors, Transform[] spawns, Transform[] entries, Transform[] queuePoints,
@@ -79,6 +84,7 @@ namespace ColonyFlow.Gameplay
             holeReturn = returning;
             holeJump = jumping;
             holeExit = exit;
+            holeObstacle = FindHoleObstacle();
         }
 
         public void ConfigureLayoutUnit(float unit)
@@ -125,6 +131,7 @@ namespace ColonyFlow.Gameplay
                 return false;
             }
             if (Application.isPlaying && !TweenRuntime.Initialize(new TweenSettings())) return false;
+            if (!ResolveHoleObstacle()) return false;
             if (!HasReferences()) return false;
             if (mapView.Model == null && !mapView.LoadMap()) return false;
             if (mapView.Model.Queues.Count > queueAnchors.Length) return false;
@@ -151,7 +158,7 @@ namespace ColonyFlow.Gameplay
 
         private bool HasReferences() =>
             mapView != null && gameplayCamera != null && boxPrefab != null && antPrefab != null &&
-            mapCardSurface != null && holeReturn != null && holeJump != null && holeExit != null &&
+            mapCardSurface != null && holeReturn != null && holeJump != null && holeExit != null && holeObstacle != null &&
             boxAnchors != null && antSpawnPoints != null && perimeterEntries != null && queueAnchors != null &&
             boxAnchors.Length == antSpawnPoints.Length && boxAnchors.Length == perimeterEntries.Length &&
             Array.TrueForAll(boxAnchors, p => p != null) && Array.TrueForAll(antSpawnPoints, p => p != null) &&
@@ -224,6 +231,7 @@ namespace ColonyFlow.Gameplay
             if (slot < 0) return false;
             MoveBoxToSlot(queueIndex, 0, slot);
             RefreshQueues(true);
+            BoxSelected?.Invoke();
             return true;
         }
 
@@ -335,6 +343,7 @@ namespace ColonyFlow.Gameplay
             ant.DetachSource();
             ant.ConfirmPickup(mapView.GetCellVisualPosition(ant.Target),
                 Vector3.Scale(mapView.Model.CellScale, mapView.Root.lossyScale));
+            AntPickupCompleted?.Invoke();
         }
 
         private void CancelPickup(AntActor ant)
@@ -463,7 +472,7 @@ namespace ColonyFlow.Gameplay
                 {
                     var box = slots[i];
                     if (box == null || box.AntCount <= 0 || box.ColorId != cell.ColorId) continue;
-                    var candidate = navigation.EvaluateFrom(cell, perimeter, perimeterEntries[i].position, 1.1f * layoutUnit);
+                    var candidate = navigation.EvaluateFrom(cell, perimeter, perimeterEntries[i].position, pickupApproachDistance * layoutUnit);
                     if (candidate == null) continue;
                     float distance = Vector3.Distance(SpawnPosition(i), Walking(perimeterEntries[i].position)) + candidate.TravelDistance;
                     assignments.Add(new TargetAssignment { SlotIndex = i, Candidate = candidate, Distance = distance });
@@ -522,18 +531,112 @@ namespace ColonyFlow.Gameplay
 
         private List<Vector3> BuildOutbound(int index, TargetCandidate candidate, List<Cell> interior)
         {
-            var points = new List<Vector3> { Walking(perimeterEntries[index].position) };
-            AppendPerimeter(points, perimeterEntries[index].position, candidate.EntryPoint);
+            Vector3 spawn = SpawnPosition(index);
+            Vector3 directEntry = Walking(perimeterEntries[index].position);
+            var points = new List<Vector3>();
+            Vector3 perimeterStart;
+            if (TryGetHoleAvoidancePoints(spawn, directEntry, out var approach, out var avoidance))
+            {
+                points.Add(approach);
+                points.Add(avoidance);
+                perimeterStart = StraightPerimeterEntry(avoidance);
+                points.Add(perimeterStart);
+            }
+            else
+            {
+                perimeterStart = directEntry;
+                points.Add(perimeterStart);
+            }
+            AppendPerimeter(points, perimeterStart, candidate.EntryPoint);
             foreach (var cell in interior) points.Add(Walking(perimeter.CellPoint(cell)));
-            if (candidate.DirectBorderAccess) points.Add(PickupApproach(candidate));
+            Vector3 approachFrom = candidate.DirectBorderAccess
+                ? Walking(candidate.EntryPoint)
+                : points[points.Count - 1];
+            points.Add(PickupApproach(candidate, approachFrom));
             return points;
         }
 
-        private Vector3 PickupApproach(TargetCandidate candidate)
+        private bool TryGetHoleAvoidancePoints(Vector3 from, Vector3 to,
+            out Vector3 approach, out Vector3 avoidance)
+        {
+            approach = default;
+            avoidance = default;
+            if (holeObstacle == null || !holeObstacle.enabled) return false;
+            var bounds = holeObstacle.bounds;
+            var rayStart = new Vector3(from.x, bounds.center.y, from.z);
+            var rayEnd = new Vector3(to.x, bounds.center.y, to.z);
+            var direction = rayEnd - rayStart;
+            float distance = direction.magnitude;
+            if (distance <= .0001f) return false;
+            var rayDirection = direction / distance;
+            if (!holeObstacle.Raycast(new Ray(rayStart, rayDirection), out var hit, distance))
+                return false;
+
+            var localBounds = HoleBoundsInMapSpace(bounds);
+            float clearance = antPrefab.HoleAvoidanceOffset * layoutUnit;
+            float turnLead = antPrefab.HoleTurnLeadDistance * layoutUnit;
+            approach = Walking(hit.point - rayDirection * turnLead);
+            var localApproach = mapView.Root.InverseTransformPoint(approach);
+            var localDirection = mapView.Root.InverseTransformDirection(rayDirection);
+            var localRight = Vector3.Cross(Vector3.up,
+                new Vector3(localDirection.x, 0, localDirection.z)).normalized;
+            float localOffset = clearance / Mathf.Abs(mapView.Root.lossyScale.x);
+            localApproach.x = localRight.x >= 0
+                ? localBounds.max.x + localOffset
+                : localBounds.min.x - localOffset;
+            avoidance = Walking(mapView.Root.TransformPoint(localApproach));
+            return true;
+        }
+
+        private Bounds HoleBoundsInMapSpace(Bounds worldBounds)
+        {
+            var min = new Vector3(float.PositiveInfinity, float.PositiveInfinity, float.PositiveInfinity);
+            var max = new Vector3(float.NegativeInfinity, float.NegativeInfinity, float.NegativeInfinity);
+            for (int i = 0; i < 8; i++)
+            {
+                var corner = worldBounds.center + Vector3.Scale(worldBounds.extents,
+                    new Vector3((i & 1) == 0 ? -1 : 1, (i & 2) == 0 ? -1 : 1, (i & 4) == 0 ? -1 : 1));
+                var local = mapView.Root.InverseTransformPoint(corner);
+                min = Vector3.Min(min, local);
+                max = Vector3.Max(max, local);
+            }
+            return new Bounds((min + max) * .5f, max - min);
+        }
+
+        private Vector3 StraightPerimeterEntry(Vector3 from)
+        {
+            float localX = mapView.Root.InverseTransformPoint(from).x;
+            return Walking(perimeter.BottomEntry(localX));
+        }
+
+        private Collider FindHoleObstacle()
+        {
+            if (holeReturn == null || holeReturn.parent == null) return null;
+            var rim = holeReturn.parent.Find("Hole Rim");
+            return rim != null ? rim.GetComponent<Collider>() : null;
+        }
+
+        private bool ResolveHoleObstacle()
+        {
+            if (holeObstacle != null) return true;
+            if (holeReturn == null || holeReturn.parent == null) return false;
+            var rim = holeReturn.parent.Find("Hole Rim");
+            if (rim == null) return false;
+            holeObstacle = rim.GetComponent<Collider>();
+            if (holeObstacle != null) return true;
+            var filter = rim.GetComponent<MeshFilter>();
+            if (filter == null || filter.sharedMesh == null) return false;
+            var meshCollider = rim.gameObject.AddComponent<MeshCollider>();
+            meshCollider.sharedMesh = filter.sharedMesh;
+            holeObstacle = meshCollider;
+            return true;
+        }
+
+        private Vector3 PickupApproach(TargetCandidate candidate, Vector3 approachFrom)
         {
             var target = Walking(perimeter.CellPoint(candidate.Target));
-            var outward = Walking(candidate.EntryPoint) - target;
-            return target + outward.normalized * (1.1f * layoutUnit);
+            var outward = approachFrom - target;
+            return target + outward.normalized * (pickupApproachDistance * layoutUnit);
         }
 
         private List<Vector3> BuildReturn(TargetCandidate candidate, List<Cell> interior, Vector3 pickup)

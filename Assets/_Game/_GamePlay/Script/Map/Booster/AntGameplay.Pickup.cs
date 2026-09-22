@@ -36,6 +36,7 @@ namespace ColonyFlow.Gameplay
             RefreshQueues(true);
             CancelBoosterSelection();
             RefreshLevelState();
+            BoosterUsed?.Invoke();
             return true;
         }
     }

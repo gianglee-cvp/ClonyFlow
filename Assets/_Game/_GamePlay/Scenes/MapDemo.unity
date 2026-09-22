@@ -148,7 +148,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: dc42784cf147c0c48a680349fa168899, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.GraphicRaycaster
   m_IgnoreReversedGraphics: 1
   m_BlockingObjects: 0
@@ -165,7 +165,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 0cd44c1031e13a943bb63640046fad76, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.CanvasScaler
   m_UiScaleMode: 0
   m_ReferencePixelsPerUnit: 100
@@ -539,7 +539,7 @@ MonoBehaviour:
   m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 58d28a7ba58115b48ab91665fba3eb0a, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: ColonyFlow.Map::ColonyFlow.Gameplay.AntGameplay
   mapView: {fileID: 1053779991}
   gameplayCamera: {fileID: 712909354}
@@ -577,9 +577,10 @@ MonoBehaviour:
   spawnInterval: 0.5
   antSpeed: 1.7142857
   layoutUnit: 0.21428572
+  pickupApproachDistance: 1.6
   queueColumnStep: 1.569375
   queueRowStep: 2
-  holeApproachDistance: 12
+  holeApproachDistance: 20
   holeJumpDistance: 5
 --- !u!4 &422342301
 Transform:
@@ -856,7 +857,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: a79441f348de89743a2939f4d699eac1, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Unity.RenderPipelines.Universal.Runtime::UnityEngine.Rendering.Universal.UniversalAdditionalCameraData
   m_RenderShadows: 1
   m_RequiresDepthTextureOption: 2
@@ -1439,7 +1440,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 28df0818144ada74497ab1dde9878b2f, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: ColonyFlow.Map::ColonyFlow.Gameplay.MapView
   mapJson: {fileID: 4900000, guid: ec52a464618980d46928e39fa1b6c01e, type: 3}
   cellPrefab: {fileID: 2396825864854407424, guid: bce38ad71ebe49945beab8147b301384, type: 3}
@@ -2066,7 +2067,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
@@ -2157,7 +2158,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 4f231c4fb786f3946a6b90b886c48677, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.EventSystems.StandaloneInputModule
   m_SendPointerHoverToParent: 1
   m_HorizontalAxis: Horizontal
@@ -2177,7 +2178,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 76c392e42b5098c458856cdf6ecaaaa1, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.EventSystems.EventSystem
   m_FirstSelected: {fileID: 0}
   m_sendNavigationEvents: 1
@@ -2210,6 +2211,7 @@ GameObject:
   - component: {fileID: 1781564881}
   - component: {fileID: 1781564880}
   - component: {fileID: 1781564879}
+  - component: {fileID: 1781564884}
   m_Layer: 0
   m_Name: Game Systems
   m_TagString: Untagged
@@ -2227,7 +2229,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 560c10417eb5f5a40962fbb04e79ecee, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: ColonyFlow.Game::ColonyFlow.Gameplay.GameManager
 --- !u!114 &1781564880
 MonoBehaviour:
@@ -2239,7 +2241,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: f33113dbd3229614486988d3a007e711, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: ColonyFlow.Game::ColonyFlow.Gameplay.UIManager
   parent: {fileID: 1631775877}
 --- !u!114 &1781564881
@@ -2252,7 +2254,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 2209b97aafcc5ab49a4ba83fe61ef1ce, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: ColonyFlow.Game::ColonyFlow.Gameplay.LevelManager
   levels:
   - {fileID: 4900000, guid: ec52a464618980d46928e39fa1b6c01e, type: 3}
@@ -2270,8 +2272,24 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3214c496656fdbb4f95a6292313ce8a4, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: ColonyFlow.Game::ColonyFlow.Gameplay.PlayerDataManager
+--- !u!114 &1781564884
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1781564878}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4d1ca67dce0a47b9b415122a68a91a25, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: ColonyFlow.Game::ColonyFlow.Gameplay.AudioManager
+  config: {fileID: 11400000, guid: a7d260d4bf0d4e47bb4d5ca93f01e642, type: 2}
+  musicSource: {fileID: 0}
+  sfxSource: {fileID: 0}
+  duckedVolume: 0.4
 --- !u!4 &1781564883
 Transform:
   m_ObjectHideFlags: 0
@@ -2396,7 +2414,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 474bcb49853aa07438625e644c072ee6, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: Unity.RenderPipelines.Universal.Runtime::UnityEngine.Rendering.Universal.UniversalAdditionalLightData
   m_UsePipelineSettings: 1
   m_AdditionalLightsShadowResolutionTier: 2

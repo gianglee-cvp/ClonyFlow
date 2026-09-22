@@ -13,6 +13,7 @@ namespace ColonyFlow.Gameplay.Editor
         private const string ScenePath = "Assets/_Game/_GamePlay/Scenes/MapDemo.unity";
         private const string MapRoot = "Assets/_Game/Data/Maps";
         private const string PrefabRoot = "Assets/Resources/UI";
+        private const string AudioConfigPath = "Assets/Resources/Audio/DefaultAudioConfig.asset";
         private static Font font;
 
         [MenuItem("ColonyFlow/UI/Build UI And Level Flow")]
@@ -25,6 +26,7 @@ namespace ColonyFlow.Gameplay.Editor
         public static void BuildPauseSettingsPrefabs()
         {
             Directory.CreateDirectory(PrefabRoot);
+            EnsureAudioConfig();
             font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             RemoveGameplayRestartButton();
             CreateSettingPrefab();
@@ -43,6 +45,7 @@ namespace ColonyFlow.Gameplay.Editor
         public static void Apply()
         {
             Directory.CreateDirectory(PrefabRoot);
+            EnsureAudioConfig();
             CreateLevelVariants();
             AssetDatabase.Refresh();
             font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
@@ -56,6 +59,12 @@ namespace ColonyFlow.Gameplay.Editor
             ConfigureScene();
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
             AssetDatabase.SaveAssets();
+        }
+        private static void EnsureAudioConfig()
+        {
+            if (AssetDatabase.LoadAssetAtPath<AudioConfig>(AudioConfigPath) != null) return;
+            Directory.CreateDirectory(Path.GetDirectoryName(AudioConfigPath));
+            AssetDatabase.CreateAsset(ScriptableObject.CreateInstance<AudioConfig>(), AudioConfigPath);
         }
         private static void CreateLevelVariants()
         {
@@ -132,17 +141,74 @@ namespace ColonyFlow.Gameplay.Editor
             playLabel.fontSize = 48;
             AddOutline(playLabel, Hex("#143F08"), new Vector2(3, -3));
 
-            Panel(canvas.transform, "Bottom Bar", Vector2.zero, new Vector2(1, .085f), new Color(.12f, .34f, .65f, .96f), false);
-            Label(canvas.transform, "Shop Tab", "SHOP", new Vector2(.02f, .015f), new Vector2(.19f, .065f), 20, Color.white);
-            Label(canvas.transform, "Collection Tab", "CUP", new Vector2(.21f, .015f), new Vector2(.38f, .065f), 20, Color.white);
-            var home = Panel(canvas.transform, "Home Tab", new Vector2(.39f, 0), new Vector2(.61f, .10f), Hex("#2E78D1"), false);
-            Label(home, "Home Label", "HOME", new Vector2(0, .08f), Vector2.one, 23, Color.white);
-            Label(canvas.transform, "Event Tab", "EVENT", new Vector2(.63f, .015f), new Vector2(.80f, .065f), 20, Color.white);
-            Label(canvas.transform, "Setting Tab", "SETTING", new Vector2(.81f, .015f), new Vector2(.99f, .065f), 18, Color.white);
+            CreateMenuBottomBar(canvas, out var bottomBar, out var selectionCard,
+                out var tabButtons, out var tabRects);
 
             Set(canvas, "levelText", level);
             Set(canvas, "playButton", play);
+            Set(canvas, "bottomBar", bottomBar);
+            Set(canvas, "selectionCard", selectionCard);
+            SetList(canvas, "tabButtons", tabButtons);
+            SetList(canvas, "tabRects", tabRects);
             Save(canvas.gameObject, "CanvasMenu");
+        }
+
+        private static void CreateMenuBottomBar(CanvasMenu canvas, out RectTransform bottomBar,
+            out RectTransform selectionCard, out Button[] buttons, out RectTransform[] tabs)
+        {
+            const string spriteRoot = "Assets/_Game/_GamePlay/Sprite/";
+            string[] iconPaths =
+            {
+                spriteRoot + "ChatGPT Image Sep 22, 2026, 02_22_00 PM (1).png",
+                spriteRoot + "ChatGPT Image Sep 22, 2026, 02_22_00 PM (2).png",
+                spriteRoot + "ChatGPT Image Sep 22, 2026, 02_22_03 PM (3).png",
+                spriteRoot + "ChatGPT Image Sep 22, 2026, 02_22_03 PM (4).png",
+                spriteRoot + "ChatGPT Image Sep 22, 2026, 02_22_03 PM (5).png"
+            };
+            string[] names = { "Shop Tab", "Collection Tab", "Home", "Event Tab", "Setting Tab" };
+            string[] labels = { "SHOP", "CUP", "HOME", "EVENT", "SETTING" };
+
+            bottomBar = Panel(canvas.transform, "Bottom Bar", Vector2.zero, new Vector2(1, .15f), Color.white, false);
+            var barImage = bottomBar.GetComponent<Image>();
+            barImage.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(
+                spriteRoot + "ChatGPT Image Sep 22, 2026, 02_22_03 PM (6).png");
+            barImage.type = Image.Type.Sliced;
+            var layout = bottomBar.gameObject.AddComponent<HorizontalLayoutGroup>();
+            layout.padding = new RectOffset(0, 0, 20, 20);
+            layout.childAlignment = TextAnchor.MiddleCenter;
+            layout.childControlWidth = layout.childControlHeight = true;
+            layout.childForceExpandWidth = layout.childForceExpandHeight = true;
+            layout.childScaleWidth = layout.childScaleHeight = false;
+
+            selectionCard = Panel(bottomBar, "Selection Card", new Vector2(.5f, 0), new Vector2(.5f, 0),
+                Hex("#477BD9"), false);
+            selectionCard.pivot = new Vector2(.5f, 0);
+            selectionCard.sizeDelta = new Vector2(216, 250);
+            var selectionImage = selectionCard.GetComponent<Image>();
+            selectionImage.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(
+                "Assets/_Game/_GamePlay/UI/RoundedPanel.png");
+            selectionImage.type = Image.Type.Sliced;
+            selectionCard.gameObject.AddComponent<LayoutElement>().ignoreLayout = true;
+            selectionCard.SetAsFirstSibling();
+
+            buttons = new Button[names.Length];
+            tabs = new RectTransform[names.Length];
+            for (int i = 0; i < names.Length; i++)
+            {
+                tabs[i] = Panel(bottomBar, names[i], Vector2.zero, Vector2.one, Color.clear, true);
+                var layoutElement = tabs[i].gameObject.AddComponent<LayoutElement>();
+                layoutElement.flexibleWidth = layoutElement.flexibleHeight = 1;
+                buttons[i] = tabs[i].gameObject.AddComponent<Button>();
+                buttons[i].targetGraphic = tabs[i].GetComponent<Image>();
+                var icon = Rect(tabs[i], "Icon", new Vector2(.20f, .28f), new Vector2(.80f, .95f));
+                var iconImage = icon.gameObject.AddComponent<Image>();
+                iconImage.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(iconPaths[i]);
+                iconImage.preserveAspect = true;
+                iconImage.raycastTarget = false;
+                var label = Label(tabs[i], "Label", labels[i], new Vector2(.03f, 0), new Vector2(.97f, .30f),
+                    i == 4 ? 18 : 20, Color.white);
+                label.raycastTarget = false;
+            }
         }
 
         private static void StaticPill(Transform parent, string name, string value, Vector2 min, Vector2 max, Color color)
@@ -187,10 +253,8 @@ namespace ColonyFlow.Gameplay.Editor
             var progressBar = Panel(canvas.transform, "Progress Bar", new Vector2(.14f, .10f), new Vector2(.86f, .14f), Hex("#245273"), false);
             var fillRect = Panel(progressBar, "Progress Fill", new Vector2(.02f, .16f), new Vector2(.98f, .84f), Hex("#F7D750"), false);
             var progressFill = fillRect.GetComponent<Image>();
-            progressFill.type = Image.Type.Filled;
-            progressFill.fillMethod = Image.FillMethod.Horizontal;
-            progressFill.fillOrigin = 0;
-            progressFill.fillAmount = 0;
+            progressFill.type = Image.Type.Simple;
+            progressFill.fillAmount = 1;
 
             Set(canvas, "loadingText", loadingText);
             Set(canvas, "progressFill", progressFill);
@@ -248,11 +312,15 @@ namespace ColonyFlow.Gameplay.Editor
             var canvas = CanvasRoot<CanvasSetting>("CanvasSetting");
             Panel(canvas.transform, "Blocker", Vector2.zero, Vector2.one, new Color(0, 0, 0, .58f), true);
             var card = Panel(canvas.transform, "Setting Card", new Vector2(.12f, .25f), new Vector2(.88f, .75f), Hex("#FFF4DA"), true);
-            Label(card, "Title", "SETTINGS", new Vector2(.05f, .76f), new Vector2(.95f, .94f), 54, Hex("#5A381A"));
-            Button resume = Button(card, "Resume Button", "RESUME", new Vector2(.15f, .53f), new Vector2(.85f, .68f), Hex("#5B83C3"), out _);
-            Button restart = Button(card, "Restart Button", "RESTART", new Vector2(.15f, .32f), new Vector2(.85f, .47f), Hex("#B8614D"), out _);
-            Button home = Button(card, "Home Button", "HOME", new Vector2(.15f, .11f), new Vector2(.85f, .26f), Hex("#8B887E"), out _);
+            Label(card, "Title", "SETTINGS", new Vector2(.05f, .80f), new Vector2(.95f, .95f), 48, Hex("#5A381A"));
+            Button music = Button(card, "Music Button", "MUSIC: ON", new Vector2(.12f, .65f), new Vector2(.88f, .76f), Hex("#408CC7"), out Text musicLabel);
+            Button sfx = Button(card, "SFX Button", "SFX: ON", new Vector2(.12f, .51f), new Vector2(.88f, .62f), Hex("#61A66B"), out Text sfxLabel);
+            Button resume = Button(card, "Resume Button", "RESUME", new Vector2(.12f, .36f), new Vector2(.88f, .47f), Hex("#5B83C3"), out _);
+            Button restart = Button(card, "Restart Button", "RESTART", new Vector2(.12f, .21f), new Vector2(.88f, .32f), Hex("#B8614D"), out _);
+            Button home = Button(card, "Home Button", "HOME", new Vector2(.12f, .06f), new Vector2(.88f, .17f), Hex("#8B887E"), out _);
             Set(canvas, "resumeButton", resume); Set(canvas, "restartButton", restart); Set(canvas, "homeButton", home);
+            Set(canvas, "musicButton", music); Set(canvas, "sfxButton", sfx);
+            Set(canvas, "musicLabel", musicLabel); Set(canvas, "sfxLabel", sfxLabel);
             Save(canvas.gameObject, "CanvasSetting");
         }
         private static void CreateWinPrefab()
@@ -352,6 +420,8 @@ namespace ColonyFlow.Gameplay.Editor
 
             var systems = new GameObject("Game Systems");
             systems.AddComponent<PlayerDataManager>();
+            var audio = systems.AddComponent<AudioManager>();
+            Set(audio, "config", AssetDatabase.LoadAssetAtPath<AudioConfig>(AudioConfigPath));
             var level = systems.AddComponent<LevelManager>();
             var ui = systems.AddComponent<UIManager>();
             systems.AddComponent<GameManager>();

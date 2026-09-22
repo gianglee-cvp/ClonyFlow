@@ -7,7 +7,10 @@ namespace ColonyFlow.Gameplay
     [Serializable]
     public sealed class PlayerData
     {
+        public int dataVersion = 2;
         public int currentLevel = 1;
+        public bool musicEnabled = true;
+        public bool sfxEnabled = true;
     }
 
     public sealed class PlayerDataManager : Singleton<PlayerDataManager>
@@ -16,11 +19,19 @@ namespace ColonyFlow.Gameplay
         private PlayerData data;
 
         public int CurrentLevel => data?.currentLevel ?? 1;
+        public bool MusicEnabled => data?.musicEnabled ?? true;
+        public bool SfxEnabled => data?.sfxEnabled ?? true;
         public string SavePath => Path.Combine(Application.persistentDataPath, FileName);
 
         public void Init(int levelCount)
         {
             data = ReadData();
+            if (data.dataVersion < 2)
+            {
+                data.dataVersion = 2;
+                data.musicEnabled = true;
+                data.sfxEnabled = true;
+            }
             data.currentLevel = Mathf.Clamp(data.currentLevel, 1, Mathf.Max(1, levelCount));
             Save();
         }
@@ -29,6 +40,22 @@ namespace ColonyFlow.Gameplay
         {
             if (data == null) data = new PlayerData();
             data.currentLevel = Mathf.Clamp(level, 1, Mathf.Max(1, levelCount));
+            Save();
+        }
+
+        public void SetMusicEnabled(bool enabled)
+        {
+            if (data == null) data = new PlayerData();
+            if (data.musicEnabled == enabled) return;
+            data.musicEnabled = enabled;
+            Save();
+        }
+
+        public void SetSfxEnabled(bool enabled)
+        {
+            if (data == null) data = new PlayerData();
+            if (data.sfxEnabled == enabled) return;
+            data.sfxEnabled = enabled;
             Save();
         }
 
