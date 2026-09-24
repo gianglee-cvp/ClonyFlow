@@ -10,24 +10,32 @@ namespace ColonyFlow.Gameplay.Editor
     {
         private const string BasePath = "Assets/_Game/_GamePlay/";
         private const float LayoutUnit = 9f / 42f;
+        private const int DefaultSlotCount = 5;
         private static float boxWidth, boxDepth, queueColumnStep, queueRowStep;
         private static Material material;
         private static Font font;
         private static Mesh roundedMesh;
 
-        public static void BuildIntoScene(MapView map, Camera camera)
+        public static bool BuildIntoScene(MapView map, Camera camera)
         {
-            BuildIntoScene(map, camera, GameplayLayoutSettings.LoadOrCreate());
+            return BuildIntoScene(map, camera, GameplayLayoutSettings.LoadOrCreate());
         }
 
-        public static void BuildIntoScene(MapView map, Camera camera, GameplayLayoutSettings settings)
+        public static bool BuildIntoScene(MapView map, Camera camera, GameplayLayoutSettings settings)
         {
-            if (!PrepareMaterials()) return;
-            SceneObjects.RemoveRoots("GameplayRoot", "ReserveSlots", "ColorButtonsArea", "Hole Rim",
-                "Map Card Frame", "Map Card Shadow");
-            CalculateBoxLayout(camera);
+            if (!PrepareMaterials()) return false;
+            CalculateBoxLayout(camera, settings);
             var box = CreateBoxPrefab(camera);
             var ant = CreateAntPrefab();
+            if (box == null || ant == null)
+            {
+                Debug.LogError("Gameplay layout rebuild cancelled: Ant or ColorBox prefab is invalid. Existing scene was preserved.");
+                return false;
+            }
+
+            // Do not remove the current scene hierarchy until every required asset is valid.
+            SceneObjects.RemoveRoots("GameplayRoot", "ReserveSlots", "ColorButtonsArea", "Hole Rim",
+                "Map Card Frame", "Map Card Shadow");
             var root = new GameObject("GameplayRoot").transform;
             var surface = CreateCard(root, camera, settings);
             var bounds = MapPerimeter.CardBounds(map.Root, surface);
@@ -44,6 +52,10 @@ namespace ColonyFlow.Gameplay.Editor
             gameplay.ConfigureBoxLayout(queueColumnStep, queueRowStep);
             map.ConfigureCellSurface(surface);
             map.ConfigureColorMaterial(colorMaterial);
+            map.ConfigureMapPadding(settings.mapPadding);
+            gameplay.CaptureSceneLayout();
+            EditorUtility.SetDirty(gameplay);
+            return true;
         }
 
         private static bool PrepareMaterials()
@@ -57,22 +69,22 @@ namespace ColonyFlow.Gameplay.Editor
             if (material == null)
             {
                 material = new Material(shader) { name = "GameplayUnlit" };
+                material.shader = shader;
+                material.enableInstancing = true;
                 AssetDatabase.CreateAsset(material, path);
             }
-            material.shader = shader;
-            material.enableInstancing = true;
-            EditorUtility.SetDirty(material);
             font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
             return true;
         }
 
-        private static void CalculateBoxLayout(Camera camera)
+        private static void CalculateBoxLayout(Camera camera, GameplayLayoutSettings settings)
         {
             float width = 2 * camera.orthographicSize * 1080 / 1920;
-            boxWidth = width * .13f;
+            boxWidth = width * settings.boxViewportWidth;
             boxDepth = (boxWidth - .14f * Mathf.Abs(camera.transform.up.y)) / Mathf.Abs(camera.transform.up.z);
-            queueColumnStep = width * .155f;
-            queueRowStep = 2 * camera.orthographicSize * .073f / Mathf.Abs(camera.transform.up.z);
+            queueColumnStep = width * settings.queueHorizontalSpacing;
+            queueRowStep = 2 * camera.orthographicSize * settings.queueRowViewportSpacing /
+                Mathf.Abs(camera.transform.up.z);
         }
 
         private static Renderer CreateCard(Transform parent, Camera camera, GameplayLayoutSettings settings)
@@ -83,8 +95,8 @@ namespace ColonyFlow.Gameplay.Editor
             var top = ScreenWorld(camera, settings.cardViewportMax.x, settings.cardViewportMax.y);
             root.localPosition = (bottom + top) * .5f + Vector3.down * (.65f * LayoutUnit);
             var size = new Vector2(top.x - bottom.x, top.z - bottom.z);
-            float inset = 44 * (2 * camera.orthographicSize / 1920);
-            CreateCardLayer(root, "Shadow", size, new Vector3(0, -.06f * LayoutUnit, -.7f * LayoutUnit), Hex("#DEAF6E"));
+            float inset = settings.cardInsetPixels * (2 * camera.orthographicSize / 1920);
+            CreateCardLayer(root, "Shadow", size, new Vector3(0, -.06f * LayoutUnit, -.35f * LayoutUnit), Hex("#DEAF6E"));
             CreateCardLayer(root, "Frame", size, Vector3.zero, Hex("#EBC68B"));
             return CreateCardLayer(root, "Surface", size - Vector2.one * inset,
                 new Vector3(0, .04f * LayoutUnit, 0), Hex("#F5E9D5"));
@@ -95,16 +107,16 @@ namespace ColonyFlow.Gameplay.Editor
         {
             var root = new GameObject("ActiveSlots").transform;
             root.SetParent(parent, false);
-            anchors = new Transform[4];
-            spawns = new Transform[4];
-            entries = new Transform[4];
-            surfaces = new Renderer[4];
-            for (int i = 0; i < 4; i++)
+            anchors = new Transform[DefaultSlotCount];
+            spawns = new Transform[DefaultSlotCount];
+            entries = new Transform[DefaultSlotCount];
+            surfaces = new Renderer[DefaultSlotCount];
+            for (int i = 0; i < DefaultSlotCount; i++)
             {
                 var slot = new GameObject($"Slot {i}").transform;
                 slot.SetParent(root, false);
                 var position = ScreenWorld(camera,
-                    settings.slotCenterViewport.x + (i - 1.5f) * settings.slotHorizontalSpacing,
+                    settings.slotCenterViewport.x + (i - (DefaultSlotCount - 1) * .5f) * settings.slotHorizontalSpacing,
                     settings.slotCenterViewport.y);
                 anchors[i] = Point(slot, "BoxAnchor", position);
                 spawns[i] = Point(slot, "AntSpawnPoint", position + Vector3.forward * (boxDepth * .5f));
@@ -120,10 +132,11 @@ namespace ColonyFlow.Gameplay.Editor
             var root = new GameObject("BoxQueues").transform;
             root.SetParent(parent, false);
             var anchors = new Transform[3];
+            Vector2 queueCenter = settings.QueueCenterViewport;
             for (int i = 0; i < anchors.Length; i++)
                 anchors[i] = Point(root, $"Queue {i} Anchor", ScreenWorld(camera,
-                    settings.queueCenterViewport.x + (i - 1) * settings.queueHorizontalSpacing,
-                    settings.queueCenterViewport.y));
+                    queueCenter.x + (i - 1) * settings.queueHorizontalSpacing,
+                    queueCenter.y));
             return anchors;
         }
 
@@ -135,11 +148,13 @@ namespace ColonyFlow.Gameplay.Editor
             var position = ScreenWorld(camera, settings.holeViewport.x, settings.holeViewport.y);
             float width = 2 * camera.orthographicSize * 1080 / 1920;
             var rim = Primitive(root, "Hole Rim", PrimitiveType.Cylinder, position + Vector3.down * (.25f * LayoutUnit),
-                new Vector3(width * .12f, .045f, width * .075f) / LayoutUnit, Hex("#B98243"), false, false);
+                new Vector3(width * settings.holeViewportWidth, .045f,
+                    width * settings.holeViewportDepth) / LayoutUnit, Hex("#8B6B72"), false, false);
             var rimCollider = rim.AddComponent<MeshCollider>();
             rimCollider.sharedMesh = rim.GetComponent<MeshFilter>().sharedMesh;
             Primitive(root, "Dark Hole", PrimitiveType.Cylinder, position + Vector3.down * (.1f * LayoutUnit),
-                new Vector3(width * .105f, .05f, width * .063f) / LayoutUnit, Hex("#59341C"), false, false);
+                new Vector3(width * settings.holeViewportWidth * .84f, .05f,
+                    width * settings.holeViewportDepth * .76f) / LayoutUnit, Hex("#3C2835"), false, false);
             returning = Point(root, "ReturnPoint", position);
             jumping = Point(root, "JumpTarget", position + Vector3.down * (2 * LayoutUnit));
             exit = Point(parent, "HoleExit", new Vector3(0, 0, bounds.min.z));
@@ -153,17 +168,34 @@ namespace ColonyFlow.Gameplay.Editor
         }
         private static BoxActor CreateBoxPrefab(Camera camera)
         {
+            const string path = BasePath + "Prefabs/ColorBox.prefab";
+            var existing = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            if (existing != null)
+            {
+                var existingActor = existing.GetComponent<BoxActor>();
+                if (existingActor == null) Debug.LogError(path + " exists but has no BoxActor component.");
+                return existingActor;
+            }
+
             var root = new GameObject("ColorBox");
             var actor = root.AddComponent<BoxActor>();
-            var border = Primitive(root.transform, "Border", PrimitiveType.Cube, Vector3.zero,
-                new Vector3(boxWidth, .14f, boxDepth) / LayoutUnit, Hex("#FFF5DC"), false).GetComponent<Renderer>();
-            var face = Primitive(root.transform, "Face", PrimitiveType.Cube, new Vector3(0, .115f / LayoutUnit, 0),
-                new Vector3(boxWidth - .10f, .10f, boxDepth - .10f) / LayoutUnit, Color.white, false).GetComponent<Renderer>();
+            var side = Primitive(root.transform, "Body", PrimitiveType.Cube,
+                new Vector3(0, .025f / LayoutUnit, 0),
+                new Vector3(boxWidth * .95f, boxWidth * .284f, boxDepth * .95f) / LayoutUnit,
+                Hex("#6B5A58"), false).GetComponent<Renderer>();
+            var border = Primitive(root.transform, "Highlight Rim", PrimitiveType.Cube,
+                new Vector3(0, .20f / LayoutUnit, 0),
+                new Vector3(boxWidth * 1.04f, .08f, boxDepth * 1.04f) / LayoutUnit,
+                Hex("#FFF4C7"), false).GetComponent<Renderer>();
+            var face = Primitive(root.transform, "Lid", PrimitiveType.Cube,
+                new Vector3(0, .32f / LayoutUnit, 0),
+                new Vector3(boxWidth * 1.05f, .22f, boxDepth * 1.05f) / LayoutUnit,
+                Hex("#FFD83D"), false).GetComponent<Renderer>();
             var collider = CreateBoxCollider(root);
             var label = CreateCountLabel(root.transform, out var canvas);
-            actor.Configure(label, face, canvas, collider, new[] { border, face });
+            actor.Configure(label, face, canvas, collider, new[] { side, border, face });
             actor.AlignCount(camera);
-            var prefab = PrefabUtility.SaveAsPrefabAsset(root, BasePath + "Prefabs/ColorBox.prefab");
+            var prefab = PrefabUtility.SaveAsPrefabAsset(root, path);
             UnityEngine.Object.DestroyImmediate(root);
             return prefab.GetComponent<BoxActor>();
         }
@@ -171,8 +203,10 @@ namespace ColonyFlow.Gameplay.Editor
         private static BoxCollider CreateBoxCollider(GameObject root)
         {
             var collider = root.AddComponent<BoxCollider>();
-            collider.center = new Vector3(0, .10f, 0);
-            collider.size = new Vector3(boxWidth, .35f, boxDepth);
+            float height = boxWidth * .45f;
+            const float faceTop = .165f;
+            collider.center = new Vector3(0, faceTop - height * .5f, 0);
+            collider.size = new Vector3(boxWidth, height, boxDepth);
             return collider;
         }
 
@@ -208,9 +242,17 @@ namespace ColonyFlow.Gameplay.Editor
 
         private static AntActor CreateAntPrefab()
         {
-            var previous = AssetDatabase.LoadAssetAtPath<GameObject>(BasePath + "Prefabs/Ant.prefab");
+            const string path = BasePath + "Prefabs/Ant.prefab";
+            var previous = AssetDatabase.LoadAssetAtPath<GameObject>(path);
+            if (previous != null)
+            {
+                var existingActor = previous.GetComponent<AntActor>();
+                if (existingActor == null) Debug.LogError(path + " exists but has no AntActor component.");
+                return existingActor;
+            }
+
             var root = new GameObject("Ant");
-            root.transform.localScale = previous != null ? previous.transform.localScale : Vector3.one * 2;
+            root.transform.localScale = Vector3.one * 2;
             var actor = root.AddComponent<AntActor>();
             var visual = new GameObject("Visual").transform;
             visual.SetParent(root.transform, false);
@@ -238,7 +280,7 @@ namespace ColonyFlow.Gameplay.Editor
             actor.Configure(visual, brick.GetComponent<Renderer>(), abdomen);
             actor.ConfigureJumpHeight(1.4f * LayoutUnit);
             brick.SetActive(false);
-            var prefab = PrefabUtility.SaveAsPrefabAsset(root, BasePath + "Prefabs/Ant.prefab");
+            var prefab = PrefabUtility.SaveAsPrefabAsset(root, path);
             UnityEngine.Object.DestroyImmediate(root);
             return prefab.GetComponent<AntActor>();
         }
@@ -263,9 +305,7 @@ namespace ColonyFlow.Gameplay.Editor
             }
             else
             {
-                EditorUtility.CopySerialized(generated, mesh);
                 UnityEngine.Object.DestroyImmediate(generated);
-                EditorUtility.SetDirty(mesh);
             }
             foreach (var part in parts) UnityEngine.Object.DestroyImmediate(part.gameObject);
             var body = new GameObject("Ant Body");
@@ -304,11 +344,10 @@ namespace ColonyFlow.Gameplay.Editor
         {
             string path = BasePath + "Materials/Gameplay-" + ColorUtility.ToHtmlStringRGBA(color) + ".mat";
             var tinted = AssetDatabase.LoadAssetAtPath<Material>(path);
-            if (tinted == null)
-            {
-                tinted = new Material(material);
-                AssetDatabase.CreateAsset(tinted, path);
-            }
+            if (tinted != null) return tinted;
+
+            tinted = new Material(material);
+            AssetDatabase.CreateAsset(tinted, path);
             tinted.shader = Shader.Find(affectedByLight ? "Universal Render Pipeline/Lit" : "Universal Render Pipeline/Unlit");
             tinted.enableInstancing = true;
             tinted.SetColor("_BaseColor", color);
@@ -335,6 +374,14 @@ namespace ColonyFlow.Gameplay.Editor
         public static CellView PrepareRoundedCell()
         {
             const string prefabPath = BasePath + "Prefabs/RoundedMapCell.prefab";
+            var existing = AssetDatabase.LoadAssetAtPath<GameObject>(prefabPath);
+            if (existing != null)
+            {
+                var existingView = existing.GetComponent<CellView>();
+                if (existingView == null) Debug.LogError(prefabPath + " exists but has no CellView component.");
+                return existingView;
+            }
+
             var mesh = LoadRoundedMesh();
             var cellMaterial = AssetDatabase.LoadAssetAtPath<Material>(BasePath + "Materials/MapCell.mat");
             if (mesh == null || cellMaterial == null) return null;
@@ -379,8 +426,13 @@ namespace ColonyFlow.Gameplay.Editor
         private static Mesh RoundedCube()
         {
             const string path = BasePath + "Meshes/RoundedCube.asset";
-            var mesh = AssetDatabase.LoadAssetAtPath<Mesh>(path);
             if (roundedMesh != null) return roundedMesh;
+            var mesh = AssetDatabase.LoadAssetAtPath<Mesh>(path);
+            if (mesh != null)
+            {
+                roundedMesh = mesh;
+                return roundedMesh;
+            }
             Directory.CreateDirectory(BasePath + "Meshes");
             var vertices = new List<Vector3>(); var triangles = new List<int>();
             var vertexNormals = new List<Vector3>();
@@ -409,10 +461,9 @@ namespace ColonyFlow.Gameplay.Editor
                         triangles.Add(b); triangles.Add(d); triangles.Add(c);
                     }
             }
-            bool created = mesh == null;
-            if (created) mesh = new Mesh { name = "RoundedCube" }; else mesh.Clear();
+            mesh = new Mesh { name = "RoundedCube" };
             mesh.SetVertices(vertices); mesh.SetTriangles(triangles, 0); mesh.SetNormals(vertexNormals); mesh.RecalculateBounds();
-            if (created) AssetDatabase.CreateAsset(mesh, path); else EditorUtility.SetDirty(mesh);
+            AssetDatabase.CreateAsset(mesh, path);
             roundedMesh = mesh;
             return mesh;
         }

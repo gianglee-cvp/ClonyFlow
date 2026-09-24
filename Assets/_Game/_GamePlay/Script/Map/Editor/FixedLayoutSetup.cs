@@ -7,9 +7,12 @@ namespace ColonyFlow.Gameplay.Editor
     public static class FixedLayoutSetup
     {
         private const string ScenePath = "Assets/_Game/_GamePlay/Scenes/MapDemo.unity";
-        [MenuItem("ColonyFlow/Map/Apply Fixed Portrait Layout")]
+        [MenuItem("ColonyFlow/Map/Force Rebuild Fixed Portrait Layout")]
         public static void ApplyFromMenu()
         {
+            if (!EditorUtility.DisplayDialog("Rebuild Gameplay Layout?",
+                    "Thao tác này sẽ xóa GameplayRoot hiện tại và tạo lại từ Legacy Settings. " +
+                    "Các chỉnh sửa thủ công trong Scene sẽ bị ghi đè.", "Rebuild", "Cancel")) return;
             if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
             Apply();
         }
@@ -38,17 +41,24 @@ namespace ColonyFlow.Gameplay.Editor
             var view = UnityEngine.Object.FindFirstObjectByType<MapView>();
             var camera = Camera.main;
             if (view == null || camera == null) return;
-            view.Clear();
-            SceneObjects.RemoveRoots("Fixed Gameplay Canvas", "Background Canvas");
+            var cellPrefab = GameplayDemoSetup.PrepareRoundedCell();
+            if (cellPrefab == null)
+            {
+                Debug.LogError("Gameplay layout rebuild cancelled: RoundedMapCell prefab is invalid. Existing scene was preserved.");
+                return;
+            }
+
             ConfigureMapRoot(view.Root);
             ConfigureCamera(camera, settings);
             ConfigureLight();
-            view.ConfigureCellPrefab(GameplayDemoSetup.PrepareRoundedCell());
             ConfigurePortrait();
-            GameplayDemoSetup.BuildIntoScene(view, camera, settings);
+            if (!GameplayDemoSetup.BuildIntoScene(view, camera, settings)) return;
+
+            view.Clear();
+            view.ConfigureCellPrefab(cellPrefab);
+            UIFlowSetup.RewireSceneOnly();
             EditorSceneManager.SaveScene(scene, ScenePath);
             AssetDatabase.SaveAssets();
-            UIFlowSetup.Apply();
         }
 
         private static void ConfigureMapRoot(Transform root)

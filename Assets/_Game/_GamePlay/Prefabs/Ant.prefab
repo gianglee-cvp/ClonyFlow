@@ -548,11 +548,17 @@ MonoBehaviour:
   carriedBrick: {fileID: 1732128174441608101}
   carriedRenderer: {fileID: 769844353110849706}
   abdomen: {fileID: 5824363375838809270}
-  jumpHeight: 0.3
+  jumpHeight: 0.54
   jumpDuration: 0.55
   pickupAnimationDuration: 0.1
-  jumpScaleMultiplier: 1.37
-  holeAvoidanceOffset: 0.2
+  brickLiftDuration: 0.25
+  brickLiftSpinDegrees: 100
+  turnSmoothTime: 0.12
+  turnRadius: 0.35
+  turnCurveSteps: 8
+  turnLookAheadDistance: 0.4
+  jumpScaleMultiplier: 1.4
+  holeAvoidanceOffset: 0.26
   holeTurnLeadDistance: 1.2
 --- !u!1 &1913260278552694967
 GameObject:

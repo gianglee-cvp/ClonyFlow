@@ -22,6 +22,7 @@ namespace ColonyFlow.Gameplay
         private SharedColorMaterialCache colorMaterials;
         private readonly Dictionary<Cell, Vector3> collectedPositions = new Dictionary<Cell, Vector3>();
         public Transform Root => mapRoot;
+        public float MapPadding => mapPadding;
         public MapModel Model { get; private set; }
         public int SpawnedCellCount => cellViews.Count;
 
@@ -36,6 +37,7 @@ namespace ColonyFlow.Gameplay
         public void ConfigureCellPrefab(CellView prefab) => cellPrefab = prefab;
         public void ConfigureCellSurface(Renderer surface) => mapCardSurface = surface;
         public void ConfigureColorMaterial(Material material) => colorMaterialTemplate = material;
+        public void ConfigureMapPadding(float padding) => mapPadding = Mathf.Max(0f, padding);
 
         private void Start()
         {

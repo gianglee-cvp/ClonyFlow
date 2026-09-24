@@ -39,6 +39,7 @@ namespace ColonyFlow.Gameplay
         private readonly List<BoxActor> pendingBoxes = new List<BoxActor>();
         private ObjectPoolManager pool;
         private SharedColorMaterialCache colorMaterials;
+        private SharedColorMaterialCache boxColorMaterials;
         private BoxActor[] slots;
         private Transform runtimeRoot;
         private GridNavigation navigation;
@@ -141,6 +142,8 @@ namespace ColonyFlow.Gameplay
             CreateRuntimeRoot();
             colorMaterials = new SharedColorMaterialCache(colorMaterialTemplate != null
                 ? colorMaterialTemplate : antPrefab.ColorMaterialTemplate);
+            boxColorMaterials = new SharedColorMaterialCache(boxPrefab.ColorMaterialTemplate != null
+                ? boxPrefab.ColorMaterialTemplate : colorMaterialTemplate);
             CreateQueues();
             RefreshQueues();
             ResetSession();
@@ -198,8 +201,11 @@ namespace ColonyFlow.Gameplay
         private BoxActor CreateBox(int queueIndex, BoxData data)
         {
             var box = pool.Spawn(boxPrefab, parent: runtimeRoot, spawnInWorldSpace: false);
+            Material colorMaterial = boxColorMaterials.Get(data.colorId,
+                mapView.Model.GetColor(data.colorId));
             box.Initialize(data.colorId, data.antCount, queueIndex,
-                colorMaterials.Get(data.colorId, mapView.Model.GetColor(data.colorId)), gameplayCamera, data.kind);
+                colorMaterial, colorMaterial, gameplayCamera, data.kind);
+            FitBoxToLayout(box);
             colliderBoxes.Add(box.HitCollider, box);
             return box;
         }
@@ -247,7 +253,7 @@ namespace ColonyFlow.Gameplay
             box.Timer = spawnInterval;
             box.gameObject.SetActive(true);
             slots[slot] = box;
-            box.JumpToSlot(boxAnchors[slot].position, layoutUnit);
+            box.JumpToSlot(SlotLandingPosition(box, slot), layoutUnit);
         }
 
         private void RefreshQueues(bool animate = false)
@@ -271,9 +277,9 @@ namespace ColonyFlow.Gameplay
                 point.x = x;
                 point.z -= i * queueRowStep;
                 var box = queues[index][i];
-                box.gameObject.SetActive(i < 3);
-                if (animate && i < 3) box.MoveInQueue(point);
-                else box.transform.position = point;
+                bool visible = i < 3;
+                box.gameObject.SetActive(visible);
+                box.PlaceInQueue(point, i == 0, animate && visible);
             }
         }
 
@@ -296,21 +302,21 @@ namespace ColonyFlow.Gameplay
             RefreshCardPerimeter();
             float dt = delta * SpeedMultiplier;
             AdvanceQueues(dt);
-            AdvanceAnts(dt);
+            AdvanceAnts(delta, SpeedMultiplier);
             ResolvePickups();
             RemoveFinishedAnts();
             AdvanceSlots(dt);
-            ResolvePendingBoxes();
+            ResolvePendingBoxes(dt);
             if (RemainingCellCount > 0) DispatchReadyBoxes(dt);
             RefreshLevelState();
         }
 
-        private void AdvanceAnts(float delta)
+        private void AdvanceAnts(float animationDelta, float speedMultiplier)
         {
             pickups.Clear();
             foreach (var ant in active)
             {
-                ant.Advance(delta, antSpeed);
+                ant.Advance(animationDelta, animationDelta * antSpeed * speedMultiplier);
                 if (ant.State == AntTripState.WaitingPickup) pickups.Add(ant);
             }
             // Collection order is independent of movement callbacks.
@@ -522,6 +528,7 @@ namespace ColonyFlow.Gameplay
             var returning = BuildReturn(candidate, interior, outbound[outbound.Count - 1]);
             var ant = pool.Spawn(antPrefab, parent: runtimeRoot, spawnInWorldSpace: false);
             ant.Begin(id, box, candidate.Target, SpawnPosition(index), outbound, returning,
+                Walking(perimeter.CellPoint(candidate.Target)),
                 holeJump.position, colorMaterials.Get(candidate.Target.ColorId,
                     mapView.Model.GetColor(candidate.Target.ColorId)));
             active.Add(ant);
@@ -636,7 +643,12 @@ namespace ColonyFlow.Gameplay
         {
             var target = Walking(perimeter.CellPoint(candidate.Target));
             var outward = approachFrom - target;
-            return target + outward.normalized * (pickupApproachDistance * layoutUnit);
+            float availableDistance = outward.magnitude;
+            if (availableDistance <= .0001f) return approachFrom;
+            // Never place the pickup endpoint beyond the incoming waypoint. Doing so makes an ant
+            // walk away from the brick and immediately turn back to face it.
+            float distance = Mathf.Min(pickupApproachDistance * layoutUnit, availableDistance);
+            return target + outward / availableDistance * distance;
         }
 
         private List<Vector3> BuildReturn(TargetCandidate candidate, List<Cell> interior, Vector3 pickup)
@@ -679,15 +691,17 @@ namespace ColonyFlow.Gameplay
             slots[index] = null;
             colliderBoxes.Remove(box.HitCollider);
             box.SlotIndex = -1;
-            box.gameObject.SetActive(false);
+            box.Disappear();
             pendingBoxes.Add(box);
         }
 
-        private void ResolvePendingBoxes()
+        private void ResolvePendingBoxes(float delta = 0f)
         {
             for (int i = pendingBoxes.Count - 1; i >= 0; i--)
             {
                 var box = pendingBoxes[i];
+                box.AdvanceAnimation(delta);
+                if (box.IsDisappearing) continue;
                 if (box.AntCount > 0)
                 {
                     int slot = Array.FindIndex(slots, b => b == null);
@@ -698,7 +712,7 @@ namespace ColonyFlow.Gameplay
                     slots[slot] = box;
                     colliderBoxes.Add(box.HitCollider, box);
                     box.gameObject.SetActive(true);
-                    box.JumpToSlot(boxAnchors[slot].position, layoutUnit);
+                    box.JumpToSlot(SlotLandingPosition(box, slot), layoutUnit);
                 }
                 else if (box.OutgoingCount == 0)
                 {
@@ -761,6 +775,8 @@ namespace ColonyFlow.Gameplay
             perimeter = null;
             colorMaterials?.Dispose();
             colorMaterials = null;
+            boxColorMaterials?.Dispose();
+            boxColorMaterials = null;
         }
 
         private void RecycleSession()

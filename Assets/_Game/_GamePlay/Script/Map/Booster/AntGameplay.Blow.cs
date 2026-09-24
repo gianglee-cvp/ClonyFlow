@@ -30,7 +30,8 @@ namespace ColonyFlow.Gameplay
             foreach (var ant in active)
             {
                 if (ant.ColorId != colorId ||
-                    (ant.State != AntTripState.Outbound && ant.State != AntTripState.PickingUp && ant.State != AntTripState.WaitingPickup)) continue;
+                    (ant.State != AntTripState.Outbound && ant.State != AntTripState.FacingPickup &&
+                    ant.State != AntTripState.PickingUp && ant.State != AntTripState.WaitingPickup)) continue;
                 ant.Source?.DiscardOutgoing();
                 if (reserves.TryGetValue(ant.Target, out var owner) && owner == ant.TaskId) reserves.Remove(ant.Target);
                 ant.DetachSource();

@@ -18,10 +18,21 @@ namespace ColonyFlow.Gameplay.Editor
         public Vector2 holeViewport;
         public Vector2 slotCenterViewport;
         public float slotHorizontalSpacing;
-        public Vector2 queueCenterViewport;
+        [Tooltip("Viewport offset from the slot row center to the first queue row.")]
+        public Vector2 queueOffsetFromSlots;
         public float queueHorizontalSpacing;
         public Vector2 cardViewportMin;
         public Vector2 cardViewportMax;
+
+        [Header("Gameplay Sizing")]
+        [Min(0f)] public float mapPadding;
+        [Min(0f)] public float cardInsetPixels;
+        [Range(.05f, .25f)] public float boxViewportWidth;
+        [Range(.03f, .15f)] public float queueRowViewportSpacing;
+        [Range(.05f, .3f)] public float holeViewportWidth;
+        [Range(.03f, .2f)] public float holeViewportDepth;
+
+        public Vector2 QueueCenterViewport => slotCenterViewport + queueOffsetFromSlots;
 
         public static GameplayLayoutSettings LoadOrCreate()
         {
@@ -46,13 +57,19 @@ namespace ColonyFlow.Gameplay.Editor
             orthographicSize = 9f;
             nearClipPlane = .3f;
             farClipPlane = 300f;
-            holeViewport = new Vector2(.5f, .445f);
-            slotCenterViewport = new Vector2(.5f, .355f);
-            slotHorizontalSpacing = .1525f;
-            queueCenterViewport = new Vector2(.5f, .263f);
-            queueHorizontalSpacing = .14f;
-            cardViewportMin = new Vector2(.04f, .515f);
-            cardViewportMax = new Vector2(.96f, .885f);
+            holeViewport = new Vector2(.5f, .46f);
+            slotCenterViewport = new Vector2(.5f, .40f);
+            slotHorizontalSpacing = .135f;
+            queueOffsetFromSlots = new Vector2(0f, -.08f);
+            queueHorizontalSpacing = .135f;
+            cardViewportMin = new Vector2(.04f, .49f);
+            cardViewportMax = new Vector2(.96f, .93f);
+            mapPadding = .12f;
+            cardInsetPixels = 22f;
+            boxViewportWidth = .115f;
+            queueRowViewportSpacing = .066f;
+            holeViewportWidth = .16f;
+            holeViewportDepth = .09f;
             ValidateValues();
         }
 
@@ -64,13 +81,19 @@ namespace ColonyFlow.Gameplay.Editor
             holeViewport = ClampViewport(holeViewport);
             slotCenterViewport = ClampViewport(slotCenterViewport);
             slotHorizontalSpacing = Mathf.Clamp01(slotHorizontalSpacing);
-            queueCenterViewport = ClampViewport(queueCenterViewport);
+            queueOffsetFromSlots = ClampOffsetToViewport(slotCenterViewport, queueOffsetFromSlots);
             queueHorizontalSpacing = Mathf.Clamp01(queueHorizontalSpacing);
             cardViewportMin = ClampViewport(cardViewportMin);
             cardViewportMax = ClampViewport(cardViewportMax);
             cardViewportMax = new Vector2(
                 Mathf.Max(cardViewportMin.x, cardViewportMax.x),
                 Mathf.Max(cardViewportMin.y, cardViewportMax.y));
+            mapPadding = Mathf.Max(0f, mapPadding);
+            cardInsetPixels = Mathf.Max(0f, cardInsetPixels);
+            boxViewportWidth = Mathf.Clamp(boxViewportWidth, .05f, .25f);
+            queueRowViewportSpacing = Mathf.Clamp(queueRowViewportSpacing, .03f, .15f);
+            holeViewportWidth = Mathf.Clamp(holeViewportWidth, .05f, .3f);
+            holeViewportDepth = Mathf.Clamp(holeViewportDepth, .03f, .2f);
         }
 
         public bool IsCameraProjectionValid(out string cameraWarning)
@@ -101,6 +124,13 @@ namespace ColonyFlow.Gameplay.Editor
         private static Vector2 ClampViewport(Vector2 value)
         {
             return new Vector2(Mathf.Clamp01(value.x), Mathf.Clamp01(value.y));
+        }
+
+        private static Vector2 ClampOffsetToViewport(Vector2 origin, Vector2 offset)
+        {
+            return new Vector2(
+                Mathf.Clamp(offset.x, -origin.x, 1f - origin.x),
+                Mathf.Clamp(offset.y, -origin.y, 1f - origin.y));
         }
     }
 }

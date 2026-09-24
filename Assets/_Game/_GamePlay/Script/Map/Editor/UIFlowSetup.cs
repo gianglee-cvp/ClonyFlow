@@ -16,9 +16,12 @@ namespace ColonyFlow.Gameplay.Editor
         private const string AudioConfigPath = "Assets/Resources/Audio/DefaultAudioConfig.asset";
         private static Font font;
 
-        [MenuItem("ColonyFlow/UI/Build UI And Level Flow")]
+        [MenuItem("ColonyFlow/UI/Force Rebuild All UI And Level Flow")]
         public static void ApplyFromMenu()
         {
+            if (!EditorUtility.DisplayDialog("Rebuild all UI and level flow?",
+                    "Thao tác này có thể ghi đè các prefab UI và thiết lập Scene hiện tại.",
+                    "Rebuild All", "Cancel")) return;
             if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) return;
             Apply();
         }
@@ -31,6 +34,25 @@ namespace ColonyFlow.Gameplay.Editor
             RemoveGameplayRestartButton();
             CreateSettingPrefab();
             AssetDatabase.SaveAssets();
+        }
+
+        public static void RewireSceneOnly()
+        {
+            var map = Object.FindFirstObjectByType<MapView>();
+            var gameplay = Object.FindFirstObjectByType<AntGameplay>();
+            var level = Object.FindFirstObjectByType<LevelManager>();
+            if (map == null || gameplay == null || level == null) return;
+
+            Set(level, "mapView", map);
+            Set(level, "gameplay", gameplay);
+            var mapSerialized = new SerializedObject(map);
+            mapSerialized.FindProperty("loadOnStart").boolValue = false;
+            mapSerialized.ApplyModifiedPropertiesWithoutUndo();
+            gameplay.enabled = false;
+            EditorUtility.SetDirty(level);
+            EditorUtility.SetDirty(map);
+            EditorUtility.SetDirty(gameplay);
+            EditorSceneManager.MarkSceneDirty(gameplay.gameObject.scene);
         }
 
         private static void RemoveGameplayRestartButton()
@@ -264,22 +286,22 @@ namespace ColonyFlow.Gameplay.Editor
         private static void CreateGameplayPrefab()
         {
             var canvas = CanvasRoot<CanvasGamePlay>("CanvasGamePlay");
-            var pointer = Panel(canvas.transform, "Gameplay Pointer Surface", new Vector2(.02f, .12f), new Vector2(.98f, .91f), new Color(1, 1, 1, .001f), true);
+            var pointer = Panel(canvas.transform, "Gameplay Pointer Surface", new Vector2(.02f, .105f), new Vector2(.98f, .925f), new Color(1, 1, 1, .001f), true);
             var pointerSurface = pointer.gameObject.AddComponent<GameplayPointerSurface>();
 
-            Panel(canvas.transform, "Header", new Vector2(0, .91f), Vector2.one, new Color(1, .82f, .55f, .94f), false);
-            Button pause = Button(canvas.transform, "Pause Button", "II", new Vector2(.025f, .925f), new Vector2(.13f, .985f), Hex("#5878A8"), out _);
-            Text level = Label(canvas.transform, "Level Text", "Level 1", new Vector2(.30f, .925f), new Vector2(.70f, .985f), 46, Hex("#5A381A"));
-            Button speed = Button(canvas.transform, "Speed Button", "x1", new Vector2(.78f, .925f), new Vector2(.97f, .985f), Hex("#8B887E"), out Text speedText);
+            Panel(canvas.transform, "Header", new Vector2(0, .925f), Vector2.one, new Color(1, .82f, .55f, .94f), false);
+            Button pause = Button(canvas.transform, "Pause Button", "II", new Vector2(.035f, .94f), new Vector2(.115f, .982f), Hex("#5878A8"), out _);
+            Text level = Label(canvas.transform, "Level Text", "Level 1", new Vector2(.32f, .94f), new Vector2(.68f, .985f), 42, Hex("#5A381A"));
+            Button speed = Button(canvas.transform, "Speed Button", "x1", new Vector2(.82f, .94f), new Vector2(.965f, .982f), Hex("#8B887E"), out Text speedText);
 
-            Text status = Label(canvas.transform, "Status Text", "Bricks", new Vector2(.04f, .13f), new Vector2(.68f, .18f), 28, Hex("#5A381A"));
+            Text status = Label(canvas.transform, "Status Text", "Bricks", new Vector2(.34f, .105f), new Vector2(.66f, .14f), 22, new Color(.22f, .14f, .09f, .82f));
 
-            Panel(canvas.transform, "Booster Bar", Vector2.zero, new Vector2(1, .12f), Hex("#6882AE"), false);
-            Button addSlot = Button(canvas.transform, "Add Slot Button", "Add Slot", new Vector2(.03f, .025f), new Vector2(.31f, .095f), Hex("#F7D750"), out _);
+            Panel(canvas.transform, "Booster Bar", Vector2.zero, new Vector2(1, .105f), Hex("#6882AE"), false);
+            Button addSlot = Button(canvas.transform, "Add Slot Button", "Add Slot", new Vector2(.06f, .018f), new Vector2(.30f, .088f), Hex("#F7D750"), out _);
             CanvasGroup addSlotGroup = addSlot.gameObject.AddComponent<CanvasGroup>();
-            Button pickup = Button(canvas.transform, "Pickup Button", "Pickup", new Vector2(.36f, .025f), new Vector2(.64f, .095f), Hex("#6AD9F1"), out _);
+            Button pickup = Button(canvas.transform, "Pickup Button", "Pickup", new Vector2(.38f, .018f), new Vector2(.62f, .088f), Hex("#6AD9F1"), out _);
             CanvasGroup pickupGroup = pickup.gameObject.AddComponent<CanvasGroup>();
-            Button blow = Button(canvas.transform, "Blow Button", "Blow", new Vector2(.69f, .025f), new Vector2(.97f, .095f), Hex("#B8614D"), out _);
+            Button blow = Button(canvas.transform, "Blow Button", "Blow", new Vector2(.70f, .018f), new Vector2(.94f, .088f), Hex("#B8614D"), out _);
             CanvasGroup blowGroup = blow.gameObject.AddComponent<CanvasGroup>();
 
             var selection = Panel(canvas.transform, "Selection Panel", new Vector2(.03f, .19f), new Vector2(.97f, .30f), new Color(.18f, .16f, .18f, .88f), true);

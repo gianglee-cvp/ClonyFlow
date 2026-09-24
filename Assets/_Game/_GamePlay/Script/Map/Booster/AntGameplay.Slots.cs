@@ -25,7 +25,7 @@ namespace ColonyFlow.Gameplay
             ExpandSlotSurface(step);
             Array.Resize(ref slots, boxAnchors.Length);
             for (int i = 0; i < slots.Length; i++)
-                if (slots[i] != null) slots[i].JumpToSlot(boxAnchors[i].position, layoutUnit);
+                if (slots[i] != null) slots[i].JumpToSlot(SlotLandingPosition(slots[i], i), layoutUnit);
             RefreshEntries();
             RefreshLevelState();
             BoosterUsed?.Invoke();
