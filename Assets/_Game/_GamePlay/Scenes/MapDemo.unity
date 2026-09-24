@@ -790,7 +790,7 @@ MonoBehaviour:
   mapCardSurface: {fileID: 1555554238}
   colorMaterialTemplate: {fileID: 2100000, guid: 9211d0a306c6cec4fb4413469240d912, type: 2}
   spawnInterval: 0.42
-  antSpeed: 2.8
+  antSpeed: 2.5
   layoutUnit: 0.21428572
   pickupApproachDistance: 1.6
   queueColumnStep: 1.3668749
