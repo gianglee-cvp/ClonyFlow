@@ -752,6 +752,11 @@ namespace ColonyFlow.Gameplay
                 !colliderBoxes.TryGetValue(hit.collider, out var actor)) return false;
             if (IsSelectingPickup) return PickupBox(actor);
             if (actor.SlotIndex >= 0 || !CanPickQueue(actor.QueueIndex) || queues[actor.QueueIndex][0] != actor) return false;
+            if (Array.FindIndex(slots, item => item == null) < 0)
+            {
+                actor.PlayBlockedPickFeedback();
+                return false;
+            }
             return PickQueue(actor.QueueIndex);
         }
 

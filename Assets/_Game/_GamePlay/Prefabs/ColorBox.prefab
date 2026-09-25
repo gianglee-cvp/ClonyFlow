@@ -432,6 +432,8 @@ MonoBehaviour:
   slotJumpHeight: 1.4
   slotJumpScale: 1.2
   queueMoveDuration: 0.26
+  blockedPickLift: 0.6
+  blockedPickDuration: 0.05
   disappearBumpDuration: 0.08
   disappearBumpHeight: 0.08
   disappearBumpScale: 1.1
@@ -440,6 +442,7 @@ MonoBehaviour:
   disappearScale: 1.2
   emptyBoxFirework: {fileID: 2151727082246053898, guid: aac241f6d295c274fb0b11138ca4fc19, type: 3}
   fireworkScale: 1
+  visualCamera: {fileID: 0}
 --- !u!65 &944637125709942796
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -478,7 +481,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &922671718071816528
 Transform:
   m_ObjectHideFlags: 0

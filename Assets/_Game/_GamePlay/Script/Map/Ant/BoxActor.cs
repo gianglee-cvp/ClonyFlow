@@ -27,6 +27,8 @@ namespace ColonyFlow.Gameplay
         [SerializeField, Min(0)] private float slotJumpHeight = 1.4f;
         [SerializeField, Range(1f, 1.5f)] private float slotJumpScale = 1.14f;
         [SerializeField, Min(.01f)] private float queueMoveDuration = .25f;
+        [SerializeField, Min(0f)] private float blockedPickLift = .14f;
+        [SerializeField, Min(.01f)] private float blockedPickDuration = .16f;
         [SerializeField, Min(.01f)] private float disappearBumpDuration = .08f;
         [SerializeField, Min(0f)] private float disappearBumpHeight = .1f;
         [SerializeField, Min(1f)] private float disappearBumpScale = 1.12f;
@@ -41,7 +43,10 @@ namespace ColonyFlow.Gameplay
         private Vector3 sideFullScale;
         private Vector3 borderFullScale;
         private Vector3 outlineCanvasFullScale;
+        private Vector3 queuePosition;
         private bool visualScalesCaptured;
+        private float blockedPickCooldown;
+        private bool blockedPickFeedbackActive;
         public bool IsLanding { get; private set; }
         public bool IsDisappearing { get; private set; }
         public int ColorId { get; private set; }
@@ -82,6 +87,9 @@ namespace ColonyFlow.Gameplay
         private void ResetBox()
         {
             animation?.Cancel();
+            blockedPickCooldown = 0f;
+            blockedPickFeedbackActive = false;
+            queuePosition = transform.position;
             IsLanding = false;
             IsDisappearing = false;
             ColorId = AntCount = OutgoingCount = 0;
@@ -221,9 +229,43 @@ namespace ColonyFlow.Gameplay
             return destination;
         }
 
-        public void AdvanceAnimation(float delta) => animation?.Advance(delta);
+        public void AdvanceAnimation(float delta)
+        {
+            blockedPickCooldown = Mathf.Max(0f, blockedPickCooldown - delta);
+            animation?.Advance(delta);
+        }
+
+        public void PlayBlockedPickFeedback()
+        {
+            if (blockedPickLift <= 0f || animation == null || blockedPickCooldown > 0f) return;
+            Vector3 restingPosition = queuePosition;
+            transform.position = restingPosition;
+            blockedPickFeedbackActive = true;
+            var bump = DOTween.Sequence()
+                .Append(transform.DOMove(restingPosition + Vector3.up * blockedPickLift, blockedPickDuration)
+                    .SetEase(Ease.OutQuad))
+                .Append(transform.DOMove(restingPosition, blockedPickDuration)
+                    .SetEase(Ease.InOutQuad))
+                .OnComplete(() =>
+                {
+                    transform.position = restingPosition;
+                    blockedPickFeedbackActive = false;
+                })
+                .OnKill(() =>
+                {
+                    if (!blockedPickFeedbackActive) return;
+                    transform.position = queuePosition;
+                    blockedPickFeedbackActive = false;
+                });
+            if (animation.Play(bump))
+                blockedPickCooldown = blockedPickDuration * 2f;
+            else
+                blockedPickFeedbackActive = false;
+        }
+
         public void PlaceInQueue(Vector3 destination, bool isFront, bool animate)
         {
+            queuePosition = destination;
             BoxVisualState target = isFront ? BoxVisualState.QueueFront : BoxVisualState.QueueBack;
             if (!animate)
             {

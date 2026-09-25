@@ -12,10 +12,18 @@ namespace ColonyFlow.Gameplay
         private readonly List<BoxActor> expired = new();
         private readonly Stack<Text> spare = new();
         private Canvas canvas;
+        private RectTransform countContainer;
 
         private void OnEnable()
         {
             canvas = GetComponentInParent<Canvas>();
+            if (canvas != null && countContainer == null)
+            {
+                var container = new GameObject("Box Counts", typeof(RectTransform));
+                countContainer = (RectTransform)container.transform;
+                countContainer.SetParent(canvas.transform, false);
+                countContainer.SetAsFirstSibling();
+            }
             if (countTemplate != null) countTemplate.gameObject.SetActive(false);
         }
 
@@ -31,7 +39,7 @@ namespace ColonyFlow.Gameplay
                 spare.Push(labels[box]);
                 labels.Remove(box);
             }
-            var parent = (RectTransform)countTemplate.transform.parent;
+            var parent = countContainer != null ? countContainer : (RectTransform)countTemplate.transform.parent;
             Camera uiCamera = canvas.renderMode == RenderMode.ScreenSpaceOverlay ? null : canvas.worldCamera;
             foreach (var box in BoxActor.CountBoxes)
             {
@@ -46,6 +54,7 @@ namespace ColonyFlow.Gameplay
                     label.raycastTarget = false;
                     labels.Add(box, label);
                 }
+                label.transform.SetAsFirstSibling();
                 Vector3 point = box.CountCamera.WorldToScreenPoint(box.CountPosition);
                 bool visible = point.z > 0 && (box.CountCamera.cullingMask & (1 << box.gameObject.layer)) != 0;
                 label.gameObject.SetActive(visible);

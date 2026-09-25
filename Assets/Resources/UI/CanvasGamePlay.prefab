@@ -589,7 +589,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: ColonyFlow.Map::ColonyFlow.Gameplay.GameplayOutlineSettings
   showOutline: 1
-  widthPixels: 9.29
+  widthPixels: 12
   outlineColor: {r: 1, g: 1, b: 1, a: 1}
 --- !u!114 &190100006
 MonoBehaviour:
