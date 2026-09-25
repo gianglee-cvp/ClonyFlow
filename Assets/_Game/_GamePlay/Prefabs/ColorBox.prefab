@@ -156,7 +156,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 766dde678f32b294eb5d5f5ef56c474a, type: 2}
+  - {fileID: 2100000, guid: 8c1138f7065daa348b9fffc1cddacd4c, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -433,7 +433,7 @@ MonoBehaviour:
   slotJumpScale: 1.2
   queueMoveDuration: 0.26
   blockedPickLift: 0.6
-  blockedPickDuration: 0.05
+  blockedPickDuration: 0.07
   disappearBumpDuration: 0.08
   disappearBumpHeight: 0.08
   disappearBumpScale: 1.1

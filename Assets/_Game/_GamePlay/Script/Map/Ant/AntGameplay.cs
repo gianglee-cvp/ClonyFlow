@@ -40,6 +40,7 @@ namespace ColonyFlow.Gameplay
         private ObjectPoolManager pool;
         private SharedColorMaterialCache colorMaterials;
         private SharedColorMaterialCache boxColorMaterials;
+        private SharedColorMaterialCache boxBodyMaterials;
         private BoxActor[] slots;
         private Transform runtimeRoot;
         private GridNavigation navigation;
@@ -144,6 +145,9 @@ namespace ColonyFlow.Gameplay
                 ? colorMaterialTemplate : antPrefab.ColorMaterialTemplate);
             boxColorMaterials = new SharedColorMaterialCache(boxPrefab.ColorMaterialTemplate != null
                 ? boxPrefab.ColorMaterialTemplate : colorMaterialTemplate);
+            boxBodyMaterials = new SharedColorMaterialCache(boxPrefab.BodyMaterialTemplate != null
+                ? boxPrefab.BodyMaterialTemplate
+                : boxPrefab.ColorMaterialTemplate != null ? boxPrefab.ColorMaterialTemplate : colorMaterialTemplate);
             CreateQueues();
             RefreshQueues();
             ResetSession();
@@ -203,8 +207,10 @@ namespace ColonyFlow.Gameplay
             var box = pool.Spawn(boxPrefab, parent: runtimeRoot, spawnInWorldSpace: false);
             Material colorMaterial = boxColorMaterials.Get(data.colorId,
                 mapView.Model.GetColor(data.colorId));
+            Material bodyMaterial = boxBodyMaterials.Get(data.colorId,
+                mapView.Model.GetColor(data.colorId));
             box.Initialize(data.colorId, data.antCount, queueIndex,
-                colorMaterial, colorMaterial, gameplayCamera, data.kind);
+                colorMaterial, bodyMaterial, gameplayCamera, data.kind);
             FitBoxToLayout(box);
             colliderBoxes.Add(box.HitCollider, box);
             return box;
@@ -782,6 +788,8 @@ namespace ColonyFlow.Gameplay
             colorMaterials = null;
             boxColorMaterials?.Dispose();
             boxColorMaterials = null;
+            boxBodyMaterials?.Dispose();
+            boxBodyMaterials = null;
         }
 
         private void RecycleSession()
