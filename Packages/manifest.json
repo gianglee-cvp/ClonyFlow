@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "com.coffee.ui-particle": "file:com.coffee.ui-particle",
     "com.unity.2d.sprite": "1.0.0",
     "com.unity.cloud.gltfast": "6.20.0",
     "com.unity.ide.visualstudio": "2.0.28",

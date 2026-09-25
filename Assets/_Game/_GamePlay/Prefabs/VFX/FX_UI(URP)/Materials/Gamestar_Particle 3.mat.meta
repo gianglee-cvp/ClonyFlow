@@ -1,0 +1,17 @@
+fileFormatVersion: 2
+guid: 7eb25974bf376b344ab0c0cf95e49168
+timeCreated: 1441270361
+licenseType: Store
+NativeFormatImporter:
+  externalObjects: {}
+  mainObjectFileID: 0
+  userData: 
+  assetBundleName: fx_textures_flare_materials.unity3d
+  assetBundleVariant: 
+AssetOrigin:
+  serializedVersion: 1
+  productId: 295790
+  packageName: Game VFX - UI Effect Collection(URP)
+  packageVersion: 1.02
+  assetPath: Assets/FX_UI(URP)/Materials/Gamestar_Particle 3.mat
+  uploadId: 715955

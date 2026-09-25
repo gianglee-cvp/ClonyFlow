@@ -33,6 +33,9 @@ namespace ColonyFlow.Gameplay
         [SerializeField, Min(.01f)] private float disappearDuration = .22f;
         [SerializeField, Min(0f)] private float disappearHeight = .45f;
         [SerializeField, Min(1f)] private float disappearScale = 1.2f;
+        [SerializeField] private GameObject emptyBoxFirework;
+        [SerializeField, Min(.01f)] private float fireworkScale = 1f;
+        [SerializeField, HideInInspector] private Camera visualCamera;
         private new ActorAnimation animation;
         private BoxVisualState visualState;
         private Vector3 sideFullScale;
@@ -52,6 +55,22 @@ namespace ColonyFlow.Gameplay
         public Collider HitCollider => hitCollider;
         public Material ColorMaterialTemplate => face != null ? face.sharedMaterial : null;
         public Material BodyMaterialTemplate => side != null ? side.sharedMaterial : null;
+        internal static readonly System.Collections.Generic.HashSet<BoxActor> OutlineBoxes = new();
+        internal static readonly System.Collections.Generic.HashSet<BoxActor> CountBoxes = new();
+        internal Camera CountCamera => visualCamera;
+        internal Vector3 CountPosition => face != null ? face.bounds.center : transform.position;
+        private void OnEnable() => CountBoxes.Add(this);
+        internal void CollectOutlineRenderers(System.Collections.Generic.List<Renderer> targets)
+        {
+            Add(face);
+            Add(side);
+            Add(border);
+            void Add(Renderer renderer)
+            {
+                if (renderer != null && renderer.enabled && renderer.gameObject.activeInHierarchy)
+                    targets.Add(renderer);
+            }
+        }
 
         public void OnPoolSpawned()
         {
@@ -70,6 +89,7 @@ namespace ColonyFlow.Gameplay
             QueueIndex = SlotIndex = -1;
             Timer = 0;
             visualState = BoxVisualState.QueueBack;
+            OutlineBoxes.Remove(this);
             SetRaisedVisible(false);
             RefreshLabel();
         }
@@ -87,6 +107,7 @@ namespace ColonyFlow.Gameplay
             Material bodyMaterial, Camera camera,
             BoxKind kind = BoxKind.Normal)
         {
+            visualCamera = camera;
             if (animation == null) animation = new ActorAnimation(gameObject);
             animation.Cancel();
             IsLanding = false;
@@ -217,6 +238,7 @@ namespace ColonyFlow.Gameplay
                 .Append(transform.DOMove(destination, queueMoveDuration).SetEase(Ease.OutCubic));
             if (reveal)
             {
+                OutlineBoxes.Add(this);
                 SetRaisedVisible(true);
                 side.transform.localScale = Compressed(sideFullScale);
                 border.transform.localScale = Compressed(borderFullScale);
@@ -239,6 +261,8 @@ namespace ColonyFlow.Gameplay
 
         private void FinishDisappear(Vector3 restingScale)
         {
+            if (AntCount == 0 && emptyBoxFirework != null)
+                BoxFireworkEffect.Play(emptyBoxFirework, VisualBounds().center, visualCamera, fireworkScale);
             transform.localScale = restingScale;
             IsDisappearing = false;
             gameObject.SetActive(false);
@@ -246,6 +270,8 @@ namespace ColonyFlow.Gameplay
 
         private void OnDisable()
         {
+            CountBoxes.Remove(this);
+            OutlineBoxes.Remove(this);
             animation?.Cancel();
             IsLanding = false;
         }
@@ -267,6 +293,10 @@ namespace ColonyFlow.Gameplay
 
         private void EnsureRaisedVisual()
         {
+            // Retire the old enlarged mesh backdrop; the camera now draws the silhouette.
+            var oldOutline = transform.Find("White Outline");
+            if (oldOutline != null && oldOutline.TryGetComponent<Renderer>(out var oldRenderer))
+                oldRenderer.enabled = false;
             if (border == null) border = (transform.Find("Highlight Rim") ?? transform.Find("Border"))
                 ?.GetComponent<Renderer>();
             if (side == null) side = (transform.Find("Body") ?? transform.Find("Colored Side"))
@@ -313,6 +343,8 @@ namespace ColonyFlow.Gameplay
             EnsureRaisedVisual();
             CaptureVisualScales();
             visualState = state;
+            if (state == BoxVisualState.QueueFront) OutlineBoxes.Add(this);
+            else OutlineBoxes.Remove(this);
             bool raised = state != BoxVisualState.QueueBack;
             SetRaisedVisible(raised);
             RestoreVisualScales();
@@ -339,7 +371,7 @@ namespace ColonyFlow.Gameplay
         {
             if (side != null) side.enabled = visible;
             if (border != null) border.enabled = visible;
-            if (outlineImage != null) outlineImage.enabled = visible;
+            if (outlineImage != null) outlineImage.enabled = false;
         }
 
         private static Vector3 Compressed(Vector3 fullScale)
@@ -432,7 +464,8 @@ namespace ColonyFlow.Gameplay
 
         private void RefreshLabel()
         {
-            if (countLabel != null) countLabel.text = AntCount.ToString();
+            // Count is drawn by the gameplay Canvas, not by the world-space box.
+            if (countLabel != null) countLabel.enabled = false;
         }
     }
 }

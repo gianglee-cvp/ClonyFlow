@@ -1,5 +1,5 @@
 {
   "name": "ColonyFlow.Map",
   "rootNamespace": "ColonyFlow.Gameplay",
-  "references": ["Unity.ugui", "ColonyFlow.Core.Tweening", "ColonyFlow.Core.Pooling"]
+  "references": ["Unity.ugui", "ColonyFlow.Core.Tweening", "ColonyFlow.Core.Pooling", "Unity.RenderPipelines.Core.Runtime", "Unity.RenderPipelines.Universal.Runtime"]
 }
