@@ -273,6 +273,7 @@ namespace ColonyFlow.Gameplay
                 float x = (visible++ - (nonempty - 1) * .5f) * queueColumnStep;
                 PositionQueue(q, mapView.Root.position.x + x, animate);
             }
+            RefreshPickupFocus();
         }
 
         private void PositionQueue(int index, float x, bool animate)
@@ -304,6 +305,7 @@ namespace ColonyFlow.Gameplay
                 return;
             }
             if (navigation == null || navigation.Map != mapView.Model) { Initialize(); return; }
+            RefreshPickupFocus();
             if (Paused || IsLevelComplete || delta <= 0) return;
             RefreshCardPerimeter();
             float dt = delta * SpeedMultiplier;
@@ -793,7 +795,11 @@ namespace ColonyFlow.Gameplay
             return false;
         }
 
-        public void TogglePause() => Paused = !Paused;
+        public void TogglePause()
+        {
+            Paused = !Paused;
+            if (Paused) CancelBoosterSelection();
+        }
         public void ToggleSpeed() => SpeedMultiplier = SpeedMultiplier == 1 ? 2 : 1;
 
         public bool HandlePointer(Vector2 screen)

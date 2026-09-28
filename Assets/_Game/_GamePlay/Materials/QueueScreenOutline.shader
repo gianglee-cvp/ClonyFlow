@@ -69,5 +69,28 @@ Shader "Hidden/ColonyFlow/QueueScreenOutline"
             }
             ENDHLSL
         }
+        Pass
+        {
+            Name "FocusDim"
+            ZWrite Off ZTest Always Cull Off
+            Blend SrcAlpha OneMinusSrcAlpha
+            HLSLPROGRAM
+            #pragma target 3.5
+            #pragma vertex Vert
+            #pragma fragment Frag
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+            half4 _FocusDimColor;
+            struct Attributes { uint vertexID : SV_VertexID; };
+            struct Varyings { float4 positionCS : SV_POSITION; };
+            Varyings Vert(Attributes input)
+            {
+                Varyings output;
+                float2 position = float2((input.vertexID << 1) & 2, input.vertexID & 2);
+                output.positionCS = float4(position * 2.0 - 1.0, 0.0, 1.0);
+                return output;
+            }
+            half4 Frag(Varyings input) : SV_Target { return _FocusDimColor; }
+            ENDHLSL
+        }
     }
 }

@@ -20,6 +20,7 @@ namespace ColonyFlow.Gameplay
         [SerializeField] private CanvasGroup blowButtonGroup;
         [SerializeField] private Button cancelButton;
         [SerializeField] private GameObject selectionPanel;
+        [SerializeField] private CanvasGroup pickupDimGroup;
         [SerializeField] private GameplayPointerSurface pointerSurface;
         [SerializeField] private List<Button> colorButtons = new List<Button>();
         [SerializeField] private List<Text> colorLabels = new List<Text>();
@@ -45,6 +46,7 @@ namespace ColonyFlow.Gameplay
             if (levelText != null) levelText.gameObject.SetActive(true);
             var obsoleteRestart = transform.Find("Restart Button");
             if (obsoleteRestart != null) obsoleteRestart.gameObject.SetActive(false);
+            EnsurePickupDimRoot();
             WireButtons();
             if (pointerSurface != null) pointerSurface.Configure(this);
             RefreshState();
@@ -94,6 +96,7 @@ namespace ColonyFlow.Gameplay
         private void RefreshSelection()
         {
             bool selecting = gameplay.IsSelectingPickup || gameplay.IsSelectingBlow;
+            if (pickupDimGroup != null) pickupDimGroup.alpha = gameplay.IsSelectingPickup ? .32f : 1f;
             if (selectionPanel != null) selectionPanel.SetActive(selecting);
             if (selectionText != null)
                 selectionText.text = gameplay.IsSelectingPickup ? "Choose a queue box" : "Choose a color";
@@ -108,6 +111,35 @@ namespace ColonyFlow.Gameplay
                 if (i < colorLabels.Count && colorLabels[i] != null) colorLabels[i].text = colorId.ToString();
                 if (i < colorImages.Count && colorImages[i] != null) colorImages[i].color = gameplay.GetGameplayColor(colorId);
             }
+        }
+
+        private void EnsurePickupDimRoot()
+        {
+            if (pickupDimGroup == null)
+                pickupDimGroup = transform.Find("Pickup Dim Root")?.GetComponent<CanvasGroup>();
+            if (pickupDimGroup == null)
+            {
+                var owner = new GameObject("Pickup Dim Root", typeof(RectTransform), typeof(CanvasGroup));
+                var rect = (RectTransform)owner.transform;
+                rect.SetParent(transform, false);
+                rect.anchorMin = Vector2.zero;
+                rect.anchorMax = Vector2.one;
+                rect.offsetMin = rect.offsetMax = Vector2.zero;
+                pickupDimGroup = owner.GetComponent<CanvasGroup>();
+            }
+
+            Transform dimRoot = pickupDimGroup.transform;
+            var ordinary = new List<Transform>();
+            for (int i = 0; i < transform.childCount; i++)
+            {
+                Transform child = transform.GetChild(i);
+                if (child == dimRoot || child == selectionPanel?.transform ||
+                    child == pointerSurface?.transform || child.name == "Box Counts" ||
+                    child.name == "Box Count Template") continue;
+                ordinary.Add(child);
+            }
+            foreach (Transform child in ordinary) child.SetParent(dimRoot, false);
+            dimRoot.SetAsFirstSibling();
         }
 
         public void HandleWorldPointer(Vector2 screenPosition) => gameplay?.HandlePointer(screenPosition);

@@ -287,22 +287,24 @@ namespace ColonyFlow.Gameplay.Editor
         private static void CreateGameplayPrefab()
         {
             var canvas = CanvasRoot<CanvasGamePlay>("CanvasGamePlay");
+            var dimRoot = Rect(canvas.transform, "Pickup Dim Root", Vector2.zero, Vector2.one);
+            var pickupDimGroup = dimRoot.gameObject.AddComponent<CanvasGroup>();
             var pointer = Panel(canvas.transform, "Gameplay Pointer Surface", new Vector2(.02f, .105f), new Vector2(.98f, .925f), new Color(1, 1, 1, .001f), true);
             var pointerSurface = pointer.gameObject.AddComponent<GameplayPointerSurface>();
 
-            Panel(canvas.transform, "Header", new Vector2(0, .925f), Vector2.one, new Color(1, .82f, .55f, .94f), false);
-            Button pause = Button(canvas.transform, "Pause Button", "II", new Vector2(.035f, .94f), new Vector2(.115f, .982f), Hex("#5878A8"), out _);
-            Text level = Label(canvas.transform, "Level Text", "Level 1", new Vector2(.32f, .94f), new Vector2(.68f, .985f), 42, Hex("#5A381A"));
-            Button speed = Button(canvas.transform, "Speed Button", "x1", new Vector2(.82f, .94f), new Vector2(.965f, .982f), Hex("#8B887E"), out Text speedText);
+            Panel(dimRoot, "Header", new Vector2(0, .925f), Vector2.one, new Color(1, .82f, .55f, .94f), false);
+            Button pause = Button(dimRoot, "Pause Button", "II", new Vector2(.035f, .94f), new Vector2(.115f, .982f), Hex("#5878A8"), out _);
+            Text level = Label(dimRoot, "Level Text", "Level 1", new Vector2(.32f, .94f), new Vector2(.68f, .985f), 42, Hex("#5A381A"));
+            Button speed = Button(dimRoot, "Speed Button", "x1", new Vector2(.82f, .94f), new Vector2(.965f, .982f), Hex("#8B887E"), out Text speedText);
 
-            Text status = Label(canvas.transform, "Status Text", "Bricks", new Vector2(.34f, .105f), new Vector2(.66f, .14f), 22, new Color(.22f, .14f, .09f, .82f));
+            Text status = Label(dimRoot, "Status Text", "Bricks", new Vector2(.34f, .105f), new Vector2(.66f, .14f), 22, new Color(.22f, .14f, .09f, .82f));
 
-            Panel(canvas.transform, "Booster Bar", Vector2.zero, new Vector2(1, .105f), Hex("#6882AE"), false);
-            Button addSlot = Button(canvas.transform, "Add Slot Button", "Add Slot", new Vector2(.06f, .018f), new Vector2(.30f, .088f), Hex("#F7D750"), out _);
+            Panel(dimRoot, "Booster Bar", Vector2.zero, new Vector2(1, .105f), Hex("#6882AE"), false);
+            Button addSlot = Button(dimRoot, "Add Slot Button", "Add Slot", new Vector2(.06f, .018f), new Vector2(.30f, .088f), Hex("#F7D750"), out _);
             CanvasGroup addSlotGroup = addSlot.gameObject.AddComponent<CanvasGroup>();
-            Button pickup = Button(canvas.transform, "Pickup Button", "Pickup", new Vector2(.38f, .018f), new Vector2(.62f, .088f), Hex("#6AD9F1"), out _);
+            Button pickup = Button(dimRoot, "Pickup Button", "Pickup", new Vector2(.38f, .018f), new Vector2(.62f, .088f), Hex("#6AD9F1"), out _);
             CanvasGroup pickupGroup = pickup.gameObject.AddComponent<CanvasGroup>();
-            Button blow = Button(canvas.transform, "Blow Button", "Blow", new Vector2(.70f, .018f), new Vector2(.94f, .088f), Hex("#B8614D"), out _);
+            Button blow = Button(dimRoot, "Blow Button", "Blow", new Vector2(.70f, .018f), new Vector2(.94f, .088f), Hex("#B8614D"), out _);
             CanvasGroup blowGroup = blow.gameObject.AddComponent<CanvasGroup>();
 
             var selection = Panel(canvas.transform, "Selection Panel", new Vector2(.03f, .19f), new Vector2(.97f, .30f), new Color(.18f, .16f, .18f, .88f), true);
@@ -324,6 +326,7 @@ namespace ColonyFlow.Gameplay.Editor
             Set(canvas, "addSlotButton", addSlot); Set(canvas, "addSlotButtonGroup", addSlotGroup);
             Set(canvas, "pickupButton", pickup); Set(canvas, "pickupButtonGroup", pickupGroup);
             Set(canvas, "blowButton", blow); Set(canvas, "blowButtonGroup", blowGroup); Set(canvas, "cancelButton", cancel); Set(canvas, "selectionPanel", selection.gameObject);
+            Set(canvas, "pickupDimGroup", pickupDimGroup);
             Set(canvas, "pointerSurface", pointerSurface); SetList(canvas, "colorButtons", colorButtons);
             SetList(canvas, "colorLabels", colorLabels); SetList(canvas, "colorImages", colorImages);
             selection.gameObject.SetActive(false);

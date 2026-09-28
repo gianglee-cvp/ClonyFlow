@@ -61,6 +61,8 @@ namespace ColonyFlow.Gameplay
         public Material ColorMaterialTemplate => face != null ? face.sharedMaterial : null;
         public Material BodyMaterialTemplate => side != null ? side.sharedMaterial : null;
         internal static readonly System.Collections.Generic.HashSet<BoxActor> OutlineBoxes = new();
+        internal static readonly System.Collections.Generic.HashSet<BoxActor> PickupFocusBoxes = new();
+        internal static bool PickupFocusActive => PickupFocusBoxes.Count > 0;
         internal static readonly System.Collections.Generic.HashSet<BoxActor> CountBoxes = new();
         internal Camera CountCamera => visualCamera;
         internal Vector3 CountPosition => face != null ? face.bounds.center : transform.position;
@@ -98,6 +100,7 @@ namespace ColonyFlow.Gameplay
             Timer = 0;
             visualState = BoxVisualState.QueueBack;
             OutlineBoxes.Remove(this);
+            PickupFocusBoxes.Remove(this);
             SetRaisedVisible(false);
             RefreshLabel();
         }
@@ -327,6 +330,7 @@ namespace ColonyFlow.Gameplay
         {
             CountBoxes.Remove(this);
             OutlineBoxes.Remove(this);
+            PickupFocusBoxes.Remove(this);
             animation?.Cancel();
             IsLanding = false;
         }

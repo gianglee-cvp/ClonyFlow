@@ -59,6 +59,10 @@ namespace ColonyFlow.Gameplay
                 bool visible = point.z > 0 && (box.CountCamera.cullingMask & (1 << box.gameObject.layer)) != 0;
                 label.gameObject.SetActive(visible);
                 if (!visible) continue;
+                var group = label.GetComponent<CanvasGroup>();
+                if (group == null) group = label.gameObject.AddComponent<CanvasGroup>();
+                group.alpha = !BoxActor.PickupFocusActive || BoxActor.PickupFocusBoxes.Contains(box)
+                    ? 1f : .32f;
                 RectTransformUtility.ScreenPointToLocalPointInRectangle(parent, point, uiCamera, out var local);
                 label.rectTransform.localPosition = local + screenOffset;
                 string value = box.AntCount.ToString();
