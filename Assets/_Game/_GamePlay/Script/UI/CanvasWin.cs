@@ -15,6 +15,9 @@ namespace ColonyFlow.Gameplay
         [SerializeField] private GameObject confettiPrefab;
         [SerializeField] private Sprite lightSprite;
         [SerializeField] private Sprite stickerSprite;
+        [SerializeField] private Sprite progressTrackSprite;
+        [SerializeField] private Sprite progressFillSprite;
+        [SerializeField] private Sprite rewardFrameSprite;
 
         private bool hasNextLevel;
         private bool wired;
@@ -95,12 +98,14 @@ namespace ColonyFlow.Gameplay
             progressText = Text("Feature Progress", card, "FEATURE PROGRESS", 24, new Color(.35f, .22f, .10f));
             progressText.rectTransform.anchorMin = new Vector2(.1f, .51f);
             progressText.rectTransform.anchorMax = new Vector2(.9f, .59f);
-            var track = Image("Feature Track", card, null, new Color(.69f, .56f, .40f),
+            var track = Image("Feature Track", card, progressTrackSprite, Color.white,
                 new Vector2(.5f, .45f), new Vector2(0, 28));
+            track.GetComponent<Image>().type = progressTrackSprite != null ? UnityEngine.UI.Image.Type.Sliced : UnityEngine.UI.Image.Type.Simple;
             track.anchorMin = new Vector2(.14f, .45f);
             track.anchorMax = new Vector2(.86f, .45f);
-            progressFill = Image("Feature Fill", track, null, new Color(.99f, .71f, .25f),
+            progressFill = Image("Feature Fill", track, progressFillSprite, Color.white,
                 new Vector2(.5f, .5f), Vector2.zero);
+            progressFill.GetComponent<Image>().type = progressFillSprite != null ? UnityEngine.UI.Image.Type.Sliced : UnityEngine.UI.Image.Type.Simple;
             progressFill.anchorMin = Vector2.zero;
             progressFill.anchorMax = Vector2.one;
             progressFill.offsetMin = progressFill.offsetMax = Vector2.zero;
@@ -108,7 +113,7 @@ namespace ColonyFlow.Gameplay
             stickerSlots = new RectTransform[3];
             for (int i = 0; i < stickerSlots.Length; i++)
             {
-                var slot = Image("Sticker Reward " + (i + 1), card, null, new Color(.89f, .79f, .61f),
+                var slot = Image("Sticker Reward " + (i + 1), card, rewardFrameSprite, Color.white,
                     new Vector2(.29f + i * .21f, .32f), new Vector2(90, 90));
                 var icon = Image("Sticker", slot, stickerSprite, Color.white, new Vector2(.5f, .5f), new Vector2(70, 70));
                 icon.gameObject.SetActive(false);

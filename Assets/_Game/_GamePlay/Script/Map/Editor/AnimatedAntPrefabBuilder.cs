@@ -1,5 +1,6 @@
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Rendering;
 using Object = UnityEngine.Object;
 
 namespace ColonyFlow.Gameplay.Editor
@@ -9,6 +10,72 @@ namespace ColonyFlow.Gameplay.Editor
         private const string PreviewPath = "Assets/_Game/_GamePlay/Prefabs/AntModelPreview.prefab";
         private const string GameplayPath = "Assets/_Game/_GamePlay/Prefabs/Ant.prefab";
         private const string LegacyPath = "Assets/_Game/_GamePlay/Prefabs/AntLegacy.prefab";
+        private const string ContactShadowPath = "Assets/_Game/GUIPackage/GUI/_Other/object_shadow.png";
+
+        [MenuItem("ColonyFlow/Ant/Attach Contact Shadow To Gameplay Prefab")]
+        public static void AttachContactShadowToGameplayPrefab()
+        {
+            var root = PrefabUtility.LoadPrefabContents(GameplayPath);
+            try
+            {
+                ConfigureContactShadow(root, root.GetComponent<AntActor>());
+                PrefabUtility.SaveAsPrefabAsset(root, GameplayPath);
+            }
+            finally { PrefabUtility.UnloadPrefabContents(root); }
+            AssetDatabase.SaveAssets();
+        }
+
+        private static void ConfigureContactShadow(GameObject root, AntActor actor)
+        {
+            var shadow = root.transform.Find("Ant Contact Shadow");
+            if (shadow == null)
+            {
+                shadow = new GameObject("Ant Contact Shadow").transform;
+                shadow.SetParent(root.transform, false);
+            }
+            shadow.localPosition = new Vector3(0f, .025f, 0f);
+            shadow.localRotation = Quaternion.Euler(-90f, 0f, 0f);
+            var renderer = shadow.GetComponent<SpriteRenderer>();
+            if (renderer == null) renderer = shadow.gameObject.AddComponent<SpriteRenderer>();
+            renderer.sprite = AssetDatabase.LoadAssetAtPath<Sprite>(ContactShadowPath);
+            if (renderer.sprite == null)
+                Debug.LogError($"Missing contact shadow sprite at {ContactShadowPath}.");
+            else
+            {
+                var size = renderer.sprite.bounds.size;
+                shadow.localScale = new Vector3(.9f / size.x, 1.15f / size.y, 1f);
+            }
+            renderer.shadowCastingMode = ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            renderer.lightProbeUsage = LightProbeUsage.Off;
+            renderer.reflectionProbeUsage = ReflectionProbeUsage.Off;
+            actor.ConfigureContactShadow(renderer);
+        }
+
+        [MenuItem("ColonyFlow/Ant/Optimize Shadow Casters")]
+        public static void OptimizeShadows()
+        {
+            OptimizePrefabShadows(PreviewPath);
+            OptimizePrefabShadows(GameplayPath);
+            AssetDatabase.SaveAssets();
+        }
+
+        private static void OptimizePrefabShadows(string path)
+        {
+            var root = PrefabUtility.LoadPrefabContents(path);
+            try
+            {
+                foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
+                {
+                    string name = renderer.gameObject.name;
+                    renderer.shadowCastingMode = path == PreviewPath &&
+                        (name == "Abdomen" || name == "Thorax" || name == "Head")
+                        ? ShadowCastingMode.On : ShadowCastingMode.Off;
+                }
+                PrefabUtility.SaveAsPrefabAsset(root, path);
+            }
+            finally { PrefabUtility.UnloadPrefabContents(root); }
+        }
 
 
         [MenuItem("ColonyFlow/Ant/Rebuild Model And Gameplay")]
@@ -51,6 +118,7 @@ namespace ColonyFlow.Gameplay.Editor
             brick.transform.localScale = new Vector3(.46f, .22f, .46f);
             Renderer brickRenderer = brick.GetComponent<Renderer>();
             brickRenderer.sharedMaterial = abdomen.sharedMaterial;
+            brickRenderer.shadowCastingMode = ShadowCastingMode.Off;
 
             var procedural = root.GetComponent<ProceduralAntAnimation>();
             if (procedural == null) procedural = root.AddComponent<ProceduralAntAnimation>();
@@ -58,6 +126,9 @@ namespace ColonyFlow.Gameplay.Editor
             var actor = root.AddComponent<AntActor>();
             actor.Configure(visual, brickRenderer, abdomen);
             actor.ConfigureJumpHeight(.3f);
+            ConfigureContactShadow(root, actor);
+            foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))
+                renderer.shadowCastingMode = ShadowCastingMode.Off;
             brick.SetActive(false);
 
             PrefabUtility.SaveAsPrefabAsset(root, GameplayPath);

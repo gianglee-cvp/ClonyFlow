@@ -78,6 +78,7 @@ namespace ColonyFlow.Gameplay.Editor
             CreateSettingPrefab();
             CreateWinPrefab();
             CreateLosePrefab();
+            UISpriteTheme.Apply();
             ConfigureScene();
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
             AssetDatabase.SaveAssets();
@@ -360,9 +361,15 @@ namespace ColonyFlow.Gameplay.Editor
             Set(canvas, "confettiPrefab", AssetDatabase.LoadAssetAtPath<GameObject>(
                 "Assets/_Game/_GamePlay/Prefabs/VFX/VFX_TA/Prefabs/VFX_UI_Confetti.prefab"));
             Set(canvas, "lightSprite", AssetDatabase.LoadAssetAtPath<Sprite>(
-                "Assets/_Game/GUI/Popup_Offer/Img-Light_Offer.png"));
+                "Assets/_Game/GUIPackage/UI/Popup_Win/light_ray.png"));
             Set(canvas, "stickerSprite", AssetDatabase.LoadAssetAtPath<Sprite>(
                 "Assets/_Game/GUI/Popup_Rate/Ico-Star2_Rate.png"));
+            Set(canvas, "progressTrackSprite", AssetDatabase.LoadAssetAtPath<Sprite>(
+                "Assets/_Game/GUIPackage/UI/Popup_Win/bar.png"));
+            Set(canvas, "progressFillSprite", AssetDatabase.LoadAssetAtPath<Sprite>(
+                "Assets/_Game/GUIPackage/UI/Popup_Win/progress bar_green.png"));
+            Set(canvas, "rewardFrameSprite", AssetDatabase.LoadAssetAtPath<Sprite>(
+                "Assets/_Game/GUIPackage/UI/Popup_Win/frame_show.png"));
             Save(canvas.gameObject, "CanvasWin");
         }
 

@@ -25,6 +25,7 @@ namespace ColonyFlow.Gameplay
         [SerializeField] private GameObject carriedBrick;
         [SerializeField] private Renderer carriedRenderer;
         [SerializeField] private Renderer abdomen;
+        [SerializeField] private SpriteRenderer contactShadow;
         [SerializeField] private float jumpHeight = 1.4f;
         [SerializeField, Min(.01f)] private float jumpDuration = .55f;
         [SerializeField, Min(0f)] private float pickupAnimationDuration = .25f;
@@ -35,6 +36,7 @@ namespace ColonyFlow.Gameplay
         [SerializeField, Min(.01f)] private float turnLookAheadDistance = .4f;
         [SerializeField, Min(1f)] private float turnDegreesPerCell = 210f;
         [SerializeField, Min(1f)] private float turnDegreesPerSecond = 720f;
+        [SerializeField, Min(.01f)] private float turnRotateSpeed = 12f;
         [SerializeField, Min(1)] private float jumpScaleMultiplier = 1.25f;
         [SerializeField, Min(0f)] private float holeAvoidanceOffset = .2f;
         [SerializeField, Min(0f)] private float holeTurnLeadDistance = 1.2f;
@@ -45,6 +47,7 @@ namespace ColonyFlow.Gameplay
         private Transform carryParent;
         private List<Vector3> route;
         private List<Vector3> returnRoute;
+        private Vector3 routeStartPosition;
         private int waypoint;
         private Vector3 jumpTarget;
         private Vector3 pickupLookAtPosition;
@@ -53,7 +56,9 @@ namespace ColonyFlow.Gameplay
         private float pickupTime;
         private float pickupAnimationTime;
         private float turnCellWidth;
-        private float frameTurnBudget;
+        private float frameTurnDelta;
+        private float frameMovement;
+        private Vector3 frameHeading;
         private System.Func<Vector3, bool> canTurnAt;
         private readonly List<TurnSample> turnSamples = new List<TurnSample>(17);
         private float turnDistance;
@@ -103,15 +108,18 @@ namespace ColonyFlow.Gameplay
         {
             animation?.Cancel();
             proceduralAnimation?.ResetPose();
+            if (contactShadow != null) contactShadow.enabled = false;
             TaskId = 0;
             ColorId = 0;
             Source = null;
             Target = null;
             route = null;
             returnRoute = null;
+            routeStartPosition = Vector3.zero;
             canTurnAt = null;
             turnCellWidth = 0f;
-            frameTurnBudget = 0f;
+            frameTurnDelta = frameMovement = 0f;
+            frameHeading = Vector3.zero;
             ClearTurn();
             waypoint = 0;
             pickupTime = .2f;
@@ -146,6 +154,12 @@ namespace ColonyFlow.Gameplay
         }
 
         public void ConfigureJumpHeight(float height) => jumpHeight = height;
+        public void ConfigureContactShadow(SpriteRenderer renderer) => contactShadow = renderer;
+
+        private void ShowContactShadow()
+        {
+            if (contactShadow != null) contactShadow.enabled = true;
+        }
 
         public void Begin(long id, BoxActor source, Cell target, Vector3 spawn, List<Vector3> outbound,
             List<Vector3> returning, Vector3 pickupLookAt, Vector3 jump, Material colorMaterial,
@@ -158,6 +172,7 @@ namespace ColonyFlow.Gameplay
             Target = target;
             route = outbound;
             returnRoute = returning;
+            routeStartPosition = spawn;
             turnCellWidth = fittedCellWidth;
             this.canTurnAt = canTurnAt;
             ClearTurn();
@@ -176,6 +191,7 @@ namespace ColonyFlow.Gameplay
             transform.position = spawn;
             FaceDirectionImmediately(FirstRouteDirection());
             State = AntTripState.Outbound;
+            ShowContactShadow();
             proceduralAnimation?.SetWalking(false);
             carriedBrick.SetActive(false);
             if (colorMaterial != null)
@@ -191,6 +207,7 @@ namespace ColonyFlow.Gameplay
             if (State == AntTripState.Inactive || State == AntTripState.Jumping) return;
             bool wasReturnTurn = turnSamples.Count > 0 && returnTurn;
             transform.position = remap(transform.position);
+            routeStartPosition = remap(routeStartPosition);
             pickupLookAtPosition = remap(pickupLookAtPosition);
             RemapWaypoints(route, waypoint, remap);
             if (returnRoute != route) RemapWaypoints(returnRoute, 0, remap);
@@ -214,6 +231,7 @@ namespace ColonyFlow.Gameplay
             carriedTransform.position = brickPosition;
             pickupRotation = carriedTransform.rotation;
             route = returnRoute;
+            routeStartPosition = transform.position;
             waypoint = 0;
             State = AntTripState.LiftingBrick;
             proceduralAnimation?.SetIdle();
@@ -228,7 +246,9 @@ namespace ColonyFlow.Gameplay
 
         public void Advance(float animationDelta, float movementDistance, float speedMultiplier = 1f)
         {
-            frameTurnBudget = turnDegreesPerSecond * animationDelta * speedMultiplier;
+            frameTurnDelta = animationDelta * speedMultiplier;
+            frameMovement = 0f;
+            frameHeading = Vector3.zero;
             proceduralAnimation?.Advance(animationDelta);
             AdvanceTrip(animationDelta, movementDistance);
             AdvancePickup(animationDelta);
@@ -273,7 +293,9 @@ namespace ColonyFlow.Gameplay
                 return;
             }
             if (State == AntTripState.Jumping) { animation.Advance(animationDelta); return; }
-            if (!WalkRoute(movementDistance)) return;
+            bool routeComplete = WalkRoute(movementDistance);
+            RotateToMovement();
+            if (!routeComplete) return;
             if (State == AntTripState.Outbound)
                 BeginPickupAnimation();
             else StartJump();
@@ -320,12 +342,12 @@ namespace ColonyFlow.Gameplay
                 float distance = direction.magnitude;
                 if (distance <= .0001f) { waypoint++; continue; }
 
-                if (TryStartCornerTurn(direction / distance, distance, out float approachDistance))
+                if (TryStartCornerTurn(distance, out float approachDistance))
                     continue;
                 if (approachDistance > .0001f)
                 {
                     float step = Mathf.Min(remaining, approachDistance);
-                    FaceAlongMotion(direction, step);
+                    TrackMovement(direction, step);
                     transform.position += direction / distance * step;
                     remaining -= step;
                     if (remaining <= .000001f) return false;
@@ -334,30 +356,38 @@ namespace ColonyFlow.Gameplay
 
                 if (distance > remaining)
                 {
-                    FaceAlongMotion(direction, remaining);
+                    TrackMovement(direction, remaining);
                     transform.position += direction / distance * remaining;
                     return false;
                 }
-                FaceAlongMotion(direction, distance);
+                TrackMovement(direction, distance);
                 transform.position = next;
                 remaining -= distance;
                 waypoint++;
             }
         }
 
-        private bool TryStartCornerTurn(Vector3 incoming, float distance, out float approachDistance)
+        private bool TryStartCornerTurn(float distance, out float approachDistance)
         {
             approachDistance = 0f;
             if (canTurnAt == null || turnCellWidth <= 0f || waypoint + 1 >= route.Count) return false;
             Vector3 corner = route[waypoint];
+            // A grid turn belongs to three route nodes. Using the node segment also
+            // keeps consecutive turns independent of the previous curve's exit point.
+            Vector3 previous = waypoint > 0 ? route[waypoint - 1] : routeStartPosition;
+            Vector3 entrySegment = corner - previous;
+            float previousDistance = entrySegment.magnitude;
+            if (previousDistance <= .0001f) return false;
+            Vector3 incoming = entrySegment / previousDistance;
             Vector3 outgoing = route[waypoint + 1] - corner;
             float nextDistance = outgoing.magnitude;
             if (nextDistance <= .0001f) return false;
             outgoing /= nextDistance;
             float dot = Vector3.Dot(incoming, outgoing);
-            if (dot >= .965f || dot <= -.965f) return false;
+            if (dot >= .99f || dot <= -.99f) return false;
 
-            float radius = Mathf.Min(turnRadius * turnCellWidth, nextDistance * .45f);
+            float radius = Mathf.Min(turnRadius * turnCellWidth,
+                previousDistance * .45f, nextDistance * .45f);
             float minimum = turnCellWidth * .025f;
             while (radius >= minimum)
             {
@@ -475,7 +505,7 @@ namespace ColonyFlow.Gameplay
             var b = turnSamples[next];
             float fraction = Mathf.InverseLerp(a.Distance, b.Distance, turnDistance);
             transform.position = Vector3.Lerp(a.Position, b.Position, fraction);
-            FaceAlongMotion(Vector3.Slerp(a.Tangent, b.Tangent, fraction), step);
+            TrackMovement(Vector3.Slerp(a.Tangent, b.Tangent, fraction), step);
             if (turnDistance < turnLength - .000001f) return false;
             int exitWaypoint = turnExitWaypoint;
             ClearTurn();
@@ -511,15 +541,25 @@ namespace ColonyFlow.Gameplay
             }
         }
 
-        private void FaceAlongMotion(Vector3 direction, float distance)
+        private void TrackMovement(Vector3 direction, float distance)
         {
             if (distance <= 0f || turnCellWidth <= 0f ||
                 direction.x * direction.x + direction.z * direction.z <= .0001f) return;
-            float targetYaw = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg;
+            frameMovement += distance;
+            frameHeading = direction;
+        }
+
+        private void RotateToMovement()
+        {
+            if (frameMovement <= 0f || frameTurnDelta <= 0f || turnCellWidth <= 0f) return;
+            frameHeading.y = 0f;
+            float targetYaw = Mathf.Atan2(frameHeading.x, frameHeading.z) * Mathf.Rad2Deg;
             float currentYaw = transform.eulerAngles.y;
-            float maxAngle = Mathf.Min(turnDegreesPerCell * distance / turnCellWidth, frameTurnBudget);
-            float yaw = Mathf.MoveTowardsAngle(currentYaw, targetYaw, maxAngle);
-            frameTurnBudget = Mathf.Max(0f, frameTurnBudget - Mathf.Abs(Mathf.DeltaAngle(currentYaw, yaw)));
+            float blend = 1f - Mathf.Exp(-turnRotateSpeed * frameTurnDelta);
+            float smoothYaw = Mathf.LerpAngle(currentYaw, targetYaw, blend);
+            float maxAngle = Mathf.Min(turnDegreesPerCell * frameMovement / turnCellWidth,
+                turnDegreesPerSecond * frameTurnDelta);
+            float yaw = Mathf.MoveTowardsAngle(currentYaw, smoothYaw, maxAngle);
             transform.rotation = Quaternion.Euler(0f, yaw, 0f);
         }
 
@@ -527,20 +567,31 @@ namespace ColonyFlow.Gameplay
         {
             animation?.Cancel();
             proceduralAnimation?.ResetPose();
+            if (contactShadow != null) contactShadow.enabled = false;
             State = AntTripState.Inactive;
             Source = null;
             Target = null;
             route = null;
             returnRoute = null;
+            routeStartPosition = Vector3.zero;
             canTurnAt = null;
             turnCellWidth = 0f;
-            frameTurnBudget = 0f;
+            frameTurnDelta = frameMovement = 0f;
+            frameHeading = Vector3.zero;
             ClearTurn();
             carriedBrick.SetActive(false);
             gameObject.SetActive(false);
         }
 
-        private void OnDisable() => animation?.Cancel();
-        private void OnDestroy() => animation?.Dispose();
+        private void OnDisable()
+        {
+            animation?.Cancel();
+            if (contactShadow != null) contactShadow.enabled = false;
+        }
+
+        private void OnDestroy()
+        {
+            animation?.Dispose();
+        }
     }
 }

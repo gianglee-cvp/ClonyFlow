@@ -127,7 +127,9 @@ namespace ColonyFlow.Gameplay.Editor
             if (collider != null) Object.DestroyImmediate(collider);
             var renderer = value.GetComponent<Renderer>();
             renderer.sharedMaterial = material;
-            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+            renderer.shadowCastingMode = name == "Abdomen" || name == "Thorax" || name == "Head"
+                ? UnityEngine.Rendering.ShadowCastingMode.On
+                : UnityEngine.Rendering.ShadowCastingMode.Off;
             renderer.receiveShadows = true;
         }
 

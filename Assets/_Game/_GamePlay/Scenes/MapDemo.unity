@@ -2215,7 +2215,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: -1079788793, guid: d0fd6fc66ce6a524a816e46c2560cf58, type: 3}
+  m_Sprite: {fileID: 21300000, guid: cadefe31c07a6874f98ee625560b1bc3, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -2266,7 +2266,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 560c10417eb5f5a40962fbb04e79ecee, type: 3}
   m_Name: 
   m_EditorClassIdentifier: ColonyFlow.Game::ColonyFlow.Gameplay.GameManager
-  winFireworkPrefab: {fileID: 5447595865628963464, guid: f3d5a9da5462b0f49b6a801fe8f3d365, type: 3}
+  winFireworkPrefab: {fileID: 0}
 --- !u!114 &1674566201
 MonoBehaviour:
   m_ObjectHideFlags: 0
