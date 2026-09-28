@@ -265,34 +265,47 @@ namespace ColonyFlow.Gameplay
 
         public void PlaceInQueue(Vector3 destination, bool isFront, bool animate)
         {
+            Vector3 previousDestination = queuePosition;
             queuePosition = destination;
             BoxVisualState target = isFront ? BoxVisualState.QueueFront : BoxVisualState.QueueBack;
             if (!animate)
             {
+                animation?.Cancel();
                 transform.position = destination;
                 SetVisualState(target);
                 return;
             }
 
+            // Picking another column refreshes every queue. Leave an unchanged box's
+            // current reveal animation alone instead of flattening and restarting it.
+            if (target == visualState &&
+                (destination - previousDestination).sqrMagnitude < .000001f) return;
+
             CaptureVisualScales();
             bool reveal = target == BoxVisualState.QueueFront && visualState == BoxVisualState.QueueBack;
-            var move = DOTween.Sequence()
-                .Append(transform.DOMove(destination, queueMoveDuration).SetEase(Ease.OutCubic));
             if (reveal)
             {
+                visualState = target;
                 OutlineBoxes.Add(this);
                 SetRaisedVisible(true);
                 side.transform.localScale = Compressed(sideFullScale);
                 border.transform.localScale = Compressed(borderFullScale);
                 if (outlineCanvas != null) outlineCanvas.localScale = outlineCanvasFullScale * .94f;
+            }
+            else if (visualState != target)
+            {
+                SetVisualState(target);
+            }
+
+            var move = DOTween.Sequence()
+                .Append(transform.DOMove(destination, queueMoveDuration).SetEase(Ease.OutCubic));
+            if (target == BoxVisualState.QueueFront &&
+                side.transform.localScale.y < sideFullScale.y - .0001f)
+            {
                 move.Join(side.transform.DOScale(sideFullScale, queueMoveDuration).SetEase(Ease.OutCubic));
                 move.Join(border.transform.DOScale(borderFullScale, queueMoveDuration).SetEase(Ease.OutCubic));
                 if (outlineCanvas != null)
                     move.Join(outlineCanvas.DOScale(outlineCanvasFullScale, queueMoveDuration).SetEase(Ease.OutCubic));
-            }
-            else
-            {
-                SetVisualState(target);
             }
             move.OnComplete(() => SetVisualState(target));
             if (animation.Play(move)) return;
