@@ -673,6 +673,10 @@ MonoBehaviour:
   levelText: {fileID: 2055008747856814768}
   continueButton: {fileID: 7621264451974021122}
   homeButton: {fileID: 6931725121706850716}
+  fireworkPrefab: {fileID: 5447595865628963464, guid: f3d5a9da5462b0f49b6a801fe8f3d365, type: 3}
+  confettiPrefab: {fileID: 8657143105729537792, guid: f872b2c90ac04bc4abb9ffcd52210052, type: 3}
+  lightSprite: {fileID: 21300000, guid: 46908697d85db22489ec9cc1dc1b45c6, type: 3}
+  stickerSprite: {fileID: 21300000, guid: c6f9a838c1adaf34b809129961cb8081, type: 3}
 --- !u!1 &7784547671396006168
 GameObject:
   m_ObjectHideFlags: 0

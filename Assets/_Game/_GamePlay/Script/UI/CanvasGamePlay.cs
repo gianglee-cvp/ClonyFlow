@@ -27,11 +27,13 @@ namespace ColonyFlow.Gameplay
         private readonly List<int> displayedColors = new List<int>();
         private AntGameplay gameplay;
         private bool wired;
+        private int displayedLevel;
 
         public override void Setup()
         {
             base.Setup();
             gameplay = LevelManager.Instance.Gameplay;
+            displayedLevel = LevelManager.Instance.CurrentLevel;
             if (addSlotButtonGroup == null && addSlotButton != null)
                 addSlotButtonGroup = addSlotButton.GetComponent<CanvasGroup>();
             if (pickupButtonGroup == null && pickupButton != null)
@@ -75,7 +77,7 @@ namespace ColonyFlow.Gameplay
         private void RefreshState()
         {
             if (gameplay == null) return;
-            if (levelText != null) levelText.text = "Level " + LevelManager.Instance.CurrentLevel;
+            if (levelText != null) levelText.text = "Level " + displayedLevel;
             if (statusText != null) statusText.text = gameplay.StatusText;
             if (speedText != null) speedText.text = "x" + gameplay.SpeedMultiplier;
             SetButtonState(addSlotButton, addSlotButtonGroup, gameplay.CanAddSlot);

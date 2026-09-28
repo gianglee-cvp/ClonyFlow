@@ -355,6 +355,14 @@ namespace ColonyFlow.Gameplay.Editor
             Button next = Button(card, "Continue Button", "CONTINUE", new Vector2(.15f, .15f), new Vector2(.85f, .35f), Hex("#5B83C3"), out _);
             Button home = Button(card, "Home Button", "HOME", new Vector2(.15f, .15f), new Vector2(.85f, .35f), Hex("#8B887E"), out _);
             Set(canvas, "levelText", level); Set(canvas, "continueButton", next); Set(canvas, "homeButton", home);
+            Set(canvas, "fireworkPrefab", AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/_Game/_GamePlay/Prefabs/VFX/VFX_TA/Prefabs/VFX_UI_Fireworks.prefab"));
+            Set(canvas, "confettiPrefab", AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/_Game/_GamePlay/Prefabs/VFX/VFX_TA/Prefabs/VFX_UI_Confetti.prefab"));
+            Set(canvas, "lightSprite", AssetDatabase.LoadAssetAtPath<Sprite>(
+                "Assets/_Game/GUI/Popup_Offer/Img-Light_Offer.png"));
+            Set(canvas, "stickerSprite", AssetDatabase.LoadAssetAtPath<Sprite>(
+                "Assets/_Game/GUI/Popup_Rate/Ico-Star2_Rate.png"));
             Save(canvas.gameObject, "CanvasWin");
         }
 
@@ -446,7 +454,9 @@ namespace ColonyFlow.Gameplay.Editor
             Set(audio, "config", AssetDatabase.LoadAssetAtPath<AudioConfig>(AudioConfigPath));
             var level = systems.AddComponent<LevelManager>();
             var ui = systems.AddComponent<UIManager>();
-            systems.AddComponent<GameManager>();
+            var manager = systems.AddComponent<GameManager>();
+            Set(manager, "winFireworkPrefab", AssetDatabase.LoadAssetAtPath<GameObject>(
+                "Assets/_Game/_GamePlay/Prefabs/VFX/VFX_TA/Prefabs/VFX_UI_Fireworks.prefab"));
             var runtimeUi = new GameObject("Runtime UI").transform; runtimeUi.SetParent(systems.transform, false);
             Set(ui, "parent", runtimeUi);
             Set(level, "mapView", map); Set(level, "gameplay", gameplay);

@@ -30,8 +30,11 @@ namespace ColonyFlow.Gameplay
         [SerializeField, Min(0f)] private float pickupAnimationDuration = .25f;
         [SerializeField, Min(.01f)] private float brickLiftDuration = .25f;
         [SerializeField, Min(0f)] private float brickLiftSpinDegrees = 360f;
-        [SerializeField, Min(.01f)] private float turnSmoothTime = .12f;
-        [SerializeField, Range(.1f, 15f)] private float pickupFacingAngle = 2f;
+        [SerializeField, Min(.01f)] private float turnRadius = .35f;
+        [SerializeField, Range(3, 16)] private int turnCurveSteps = 8;
+        [SerializeField, Min(.01f)] private float turnLookAheadDistance = .4f;
+        [SerializeField, Min(1f)] private float turnDegreesPerCell = 210f;
+        [SerializeField, Min(1f)] private float turnDegreesPerSecond = 720f;
         [SerializeField, Min(1)] private float jumpScaleMultiplier = 1.25f;
         [SerializeField, Min(0f)] private float holeAvoidanceOffset = .2f;
         [SerializeField, Min(0f)] private float holeTurnLeadDistance = 1.2f;
@@ -49,8 +52,21 @@ namespace ColonyFlow.Gameplay
         private Quaternion carryLocalRotation, pickupRotation;
         private float pickupTime;
         private float pickupAnimationTime;
-        private float currentYaw;
-        private float yawVelocity;
+        private float turnCellWidth;
+        private float frameTurnBudget;
+        private System.Func<Vector3, bool> canTurnAt;
+        private readonly List<TurnSample> turnSamples = new List<TurnSample>(17);
+        private float turnDistance;
+        private float turnLength;
+        private int turnExitWaypoint;
+        private bool returnTurn;
+
+        private struct TurnSample
+        {
+            public Vector3 Position;
+            public Vector3 Tangent;
+            public float Distance;
+        }
         public long TaskId { get; private set; }
         public int ColorId { get; private set; }
         public Cell Target { get; private set; }
@@ -93,12 +109,15 @@ namespace ColonyFlow.Gameplay
             Target = null;
             route = null;
             returnRoute = null;
+            canTurnAt = null;
+            turnCellWidth = 0f;
+            frameTurnBudget = 0f;
+            ClearTurn();
             waypoint = 0;
             pickupTime = .2f;
             pickupAnimationTime = 0;
             State = AntTripState.Inactive;
             transform.localScale = initialScale;
-            SyncYaw();
             if (visualRoot != null) visualRoot.localPosition = Vector3.zero;
             if (carriedBrick != null) carriedBrick.SetActive(false);
             if (carriedTransform != null)
@@ -129,7 +148,8 @@ namespace ColonyFlow.Gameplay
         public void ConfigureJumpHeight(float height) => jumpHeight = height;
 
         public void Begin(long id, BoxActor source, Cell target, Vector3 spawn, List<Vector3> outbound,
-            List<Vector3> returning, Vector3 pickupLookAt, Vector3 jump, Material colorMaterial)
+            List<Vector3> returning, Vector3 pickupLookAt, Vector3 jump, Material colorMaterial,
+            float fittedCellWidth, System.Func<Vector3, bool> canTurnAt)
         {
             if (carriedTransform == null) CacheCarryTransforms();
             TaskId = id;
@@ -138,6 +158,9 @@ namespace ColonyFlow.Gameplay
             Target = target;
             route = outbound;
             returnRoute = returning;
+            turnCellWidth = fittedCellWidth;
+            this.canTurnAt = canTurnAt;
+            ClearTurn();
             waypoint = 0;
             if (animation == null)
             {
@@ -166,10 +189,13 @@ namespace ColonyFlow.Gameplay
         public void RemapCardRoute(System.Func<Vector3, Vector3> remap)
         {
             if (State == AntTripState.Inactive || State == AntTripState.Jumping) return;
+            bool wasReturnTurn = turnSamples.Count > 0 && returnTurn;
             transform.position = remap(transform.position);
             pickupLookAtPosition = remap(pickupLookAtPosition);
             RemapWaypoints(route, waypoint, remap);
             if (returnRoute != route) RemapWaypoints(returnRoute, 0, remap);
+            ClearTurn();
+            if (wasReturnTurn) TryStartReturnTurn();
         }
 
         private static void RemapWaypoints(List<Vector3> points, int start, System.Func<Vector3, Vector3> remap)
@@ -200,8 +226,9 @@ namespace ColonyFlow.Gameplay
                 worldScale.x / parentScale.x, worldScale.y / parentScale.y, worldScale.z / parentScale.z);
         }
 
-        public void Advance(float animationDelta, float movementDistance)
+        public void Advance(float animationDelta, float movementDistance, float speedMultiplier = 1f)
         {
+            frameTurnBudget = turnDegreesPerSecond * animationDelta * speedMultiplier;
             proceduralAnimation?.Advance(animationDelta);
             AdvanceTrip(animationDelta, movementDistance);
             AdvancePickup(animationDelta);
@@ -221,35 +248,20 @@ namespace ColonyFlow.Gameplay
             if (pickupTime < brickLiftDuration) return;
             carriedTransform.localPosition = carryLocalPosition;
             carriedTransform.localRotation = carryLocalRotation;
-            State = AntTripState.FacingReturn;
-            proceduralAnimation?.SetIdle();
+            State = AntTripState.Returning;
+            proceduralAnimation?.SetWalking(true);
+            TryStartReturnTurn();
         }
 
         private void AdvanceTrip(float animationDelta, float movementDistance)
         {
             if (State == AntTripState.Inactive || State == AntTripState.WaitingPickup ||
                 State == AntTripState.LiftingBrick) return;
-            if (State == AntTripState.FacingPickup)
-            {
-                if (!SmoothFace(pickupLookAtPosition - transform.position, animationDelta)) return;
-                State = AntTripState.PickingUp;
-                pickupAnimationTime = 0;
-                proceduralAnimation?.SetPickingUp();
-                return;
-            }
-            if (State == AntTripState.FacingReturn)
-            {
-                if (!SmoothFace(FirstRouteDirection(), animationDelta)) return;
-                State = AntTripState.Returning;
-                proceduralAnimation?.SetWalking(true);
-                return;
-            }
-            if (State == AntTripState.FacingJump)
-            {
-                if (!SmoothFace(jumpTarget - transform.position, animationDelta)) return;
-                StartJump();
-                return;
-            }
+            // Legacy Facing states are accepted for old pooled actors, but never wait and
+            // rotate in place. Normal turns are handled by the moving route below.
+            if (State == AntTripState.FacingPickup) { BeginPickupAnimation(); return; }
+            if (State == AntTripState.FacingReturn) State = AntTripState.Returning;
+            if (State == AntTripState.FacingJump) { StartJump(); return; }
             if (State == AntTripState.PickingUp)
             {
                 pickupAnimationTime += animationDelta;
@@ -261,25 +273,23 @@ namespace ColonyFlow.Gameplay
                 return;
             }
             if (State == AntTripState.Jumping) { animation.Advance(animationDelta); return; }
-            if (!WalkRoute(movementDistance, animationDelta)) return;
+            if (!WalkRoute(movementDistance)) return;
             if (State == AntTripState.Outbound)
-            {
-                State = AntTripState.FacingPickup;
-                proceduralAnimation?.SetIdle();
-            }
-            else BeginFacingJump();
+                BeginPickupAnimation();
+            else StartJump();
+        }
+
+        private void BeginPickupAnimation()
+        {
+            State = AntTripState.PickingUp;
+            pickupAnimationTime = 0;
+            proceduralAnimation?.SetPickingUp();
         }
 
         private void FinishJump()
         {
             State = AntTripState.Inactive;
             gameObject.SetActive(false);
-        }
-
-        private void BeginFacingJump()
-        {
-            State = AntTripState.FacingJump;
-            proceduralAnimation?.SetIdle();
         }
 
         private void StartJump()
@@ -298,29 +308,187 @@ namespace ColonyFlow.Gameplay
             FinishJump();
         }
 
-        private bool WalkRoute(float remaining, float turnDelta)
+        private bool WalkRoute(float remaining)
         {
-            bool rotated = false;
-            while (waypoint < route.Count)
+            while (true)
             {
-                var next = route[waypoint];
-                var direction = next - transform.position;
+                if (turnSamples.Count > 0 && !AdvanceTurn(ref remaining)) return false;
+                if (waypoint >= route.Count) return true;
+
+                Vector3 next = route[waypoint];
+                Vector3 direction = next - transform.position;
                 float distance = direction.magnitude;
-                if (!rotated && distance > .0001f)
+                if (distance <= .0001f) { waypoint++; continue; }
+
+                if (TryStartCornerTurn(direction / distance, distance, out float approachDistance))
+                    continue;
+                if (approachDistance > .0001f)
                 {
-                    SmoothFace(direction, turnDelta);
-                    rotated = true;
+                    float step = Mathf.Min(remaining, approachDistance);
+                    FaceAlongMotion(direction, step);
+                    transform.position += direction / distance * step;
+                    remaining -= step;
+                    if (remaining <= .000001f) return false;
+                    continue;
                 }
+
                 if (distance > remaining)
                 {
-                    transform.position += direction.normalized * remaining;
+                    FaceAlongMotion(direction, remaining);
+                    transform.position += direction / distance * remaining;
                     return false;
                 }
+                FaceAlongMotion(direction, distance);
                 transform.position = next;
                 remaining -= distance;
                 waypoint++;
             }
+        }
+
+        private bool TryStartCornerTurn(Vector3 incoming, float distance, out float approachDistance)
+        {
+            approachDistance = 0f;
+            if (canTurnAt == null || turnCellWidth <= 0f || waypoint + 1 >= route.Count) return false;
+            Vector3 corner = route[waypoint];
+            Vector3 outgoing = route[waypoint + 1] - corner;
+            float nextDistance = outgoing.magnitude;
+            if (nextDistance <= .0001f) return false;
+            outgoing /= nextDistance;
+            float dot = Vector3.Dot(incoming, outgoing);
+            if (dot >= .965f || dot <= -.965f) return false;
+
+            float radius = Mathf.Min(turnRadius * turnCellWidth, nextDistance * .45f);
+            float minimum = turnCellWidth * .025f;
+            while (radius >= minimum)
+            {
+                if (distance > radius + .0001f)
+                {
+                    approachDistance = distance - radius;
+                    return false;
+                }
+                if (TryQuadraticTurn(transform.position, corner, corner + outgoing * radius,
+                        waypoint + 1)) return true;
+                radius *= .5f;
+            }
+            return false;
+        }
+
+        private void TryStartReturnTurn()
+        {
+            ClearTurn();
+            if (route == null || canTurnAt == null || turnCellWidth <= 0f) return;
+            while (waypoint < route.Count &&
+                   (route[waypoint] - transform.position).sqrMagnitude <= .000001f) waypoint++;
+            if (waypoint >= route.Count) return;
+            Vector3 start = transform.position;
+            Vector3 returning = route[waypoint] - start;
+            float distance = returning.magnitude;
+            Vector3 endDirection = returning / distance;
+            Vector3 forward = transform.forward;
+            forward.y = 0f;
+            forward.Normalize();
+            if (forward.sqrMagnitude < .5f || Vector3.Dot(forward, endDirection) >= .965f) return;
+
+            float lead = Mathf.Min(turnLookAheadDistance * turnCellWidth, distance * .45f);
+            float radius = Mathf.Min(turnRadius * turnCellWidth, distance * .45f);
+            Vector3 side = new Vector3(forward.z, 0f, -forward.x);
+            while (radius >= turnCellWidth * .025f)
+            {
+                Vector3 end = start + endDirection * lead;
+                if (TryQuarticTurn(start, forward, end, endDirection, side, radius, waypoint) ||
+                    TryQuarticTurn(start, forward, end, endDirection, -side, radius, waypoint)) return;
+                radius *= .5f;
+                lead *= .5f;
+            }
+        }
+
+        private bool TryQuadraticTurn(Vector3 start, Vector3 corner, Vector3 end, int exitWaypoint)
+        {
+            ClearTurn();
+            int steps = Mathf.Max(3, turnCurveSteps);
+            for (int i = 0; i <= steps; i++)
+            {
+                float t = (float)i / steps;
+                float u = 1f - t;
+                Vector3 point = u * u * start + 2f * u * t * corner + t * t * end;
+                Vector3 tangent = 2f * u * (corner - start) + 2f * t * (end - corner);
+                if (!AddTurnSample(point, tangent)) { ClearTurn(); return false; }
+            }
+            return FinishTurn(exitWaypoint, false);
+        }
+
+        private bool TryQuarticTurn(Vector3 start, Vector3 forward, Vector3 end,
+            Vector3 endDirection, Vector3 side, float radius, int exitWaypoint)
+        {
+            ClearTurn();
+            Vector3 p1 = start + forward * radius;
+            Vector3 p2 = start + forward * radius + side * (radius * 2f);
+            Vector3 p3 = end - endDirection * radius;
+            int steps = Mathf.Max(3, turnCurveSteps);
+            for (int i = 0; i <= steps; i++)
+            {
+                float t = (float)i / steps;
+                float u = 1f - t;
+                float u2 = u * u, t2 = t * t;
+                Vector3 point = u2 * u2 * start + 4f * u2 * u * t * p1 +
+                    6f * u2 * t2 * p2 + 4f * u * t2 * t * p3 + t2 * t2 * end;
+                Vector3 tangent = 4f * (u2 * u * (p1 - start) + 3f * u2 * t * (p2 - p1) +
+                    3f * u * t2 * (p3 - p2) + t2 * t * (end - p3));
+                if (!AddTurnSample(point, tangent)) { ClearTurn(); return false; }
+            }
+            return FinishTurn(exitWaypoint, true);
+        }
+
+        private bool AddTurnSample(Vector3 point, Vector3 tangent)
+        {
+            tangent.y = 0f;
+            if (tangent.sqrMagnitude <= .00000001f || !canTurnAt(point)) return false;
+            float length = 0f;
+            if (turnSamples.Count > 0)
+            {
+                Vector3 previous = turnSamples[turnSamples.Count - 1].Position;
+                if (!canTurnAt((previous + point) * .5f)) return false;
+                length = turnSamples[turnSamples.Count - 1].Distance + Vector3.Distance(previous, point);
+            }
+            turnSamples.Add(new TurnSample { Position = point, Tangent = tangent.normalized, Distance = length });
             return true;
+        }
+
+        private bool FinishTurn(int exitWaypoint, bool isReturn)
+        {
+            turnLength = turnSamples[turnSamples.Count - 1].Distance;
+            if (turnLength <= .0001f) { ClearTurn(); return false; }
+            turnDistance = 0f;
+            turnExitWaypoint = exitWaypoint;
+            returnTurn = isReturn;
+            return true;
+        }
+
+        private bool AdvanceTurn(ref float remaining)
+        {
+            float step = Mathf.Min(remaining, turnLength - turnDistance);
+            turnDistance += step;
+            remaining -= step;
+            int next = 1;
+            while (next < turnSamples.Count - 1 && turnSamples[next].Distance < turnDistance) next++;
+            var a = turnSamples[next - 1];
+            var b = turnSamples[next];
+            float fraction = Mathf.InverseLerp(a.Distance, b.Distance, turnDistance);
+            transform.position = Vector3.Lerp(a.Position, b.Position, fraction);
+            FaceAlongMotion(Vector3.Slerp(a.Tangent, b.Tangent, fraction), step);
+            if (turnDistance < turnLength - .000001f) return false;
+            int exitWaypoint = turnExitWaypoint;
+            ClearTurn();
+            waypoint = exitWaypoint;
+            return true;
+        }
+
+        private void ClearTurn()
+        {
+            turnSamples.Clear();
+            turnDistance = turnLength = 0f;
+            turnExitWaypoint = 0;
+            returnTurn = false;
         }
 
         private Vector3 FirstRouteDirection()
@@ -334,31 +502,25 @@ namespace ColonyFlow.Gameplay
             return transform.forward;
         }
 
-        private bool SmoothFace(Vector3 direction, float delta)
-        {
-            direction.y = 0f;
-            if (direction.sqrMagnitude <= .0001f) return true;
-            float targetYaw = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg;
-            currentYaw = Mathf.SmoothDampAngle(currentYaw, targetYaw, ref yawVelocity,
-                turnSmoothTime, Mathf.Infinity, delta);
-            transform.rotation = Quaternion.Euler(0f, currentYaw, 0f);
-            return Mathf.Abs(Mathf.DeltaAngle(currentYaw, targetYaw)) <= pickupFacingAngle;
-        }
-
-        private void SyncYaw()
-        {
-            currentYaw = transform.eulerAngles.y;
-            yawVelocity = 0f;
-        }
-
         private void FaceDirectionImmediately(Vector3 direction)
         {
             if (direction.x * direction.x + direction.z * direction.z > .0001f)
             {
-                currentYaw = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg;
-                yawVelocity = 0f;
-                transform.rotation = Quaternion.Euler(0f, currentYaw, 0f);
+                float yaw = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg;
+                transform.rotation = Quaternion.Euler(0f, yaw, 0f);
             }
+        }
+
+        private void FaceAlongMotion(Vector3 direction, float distance)
+        {
+            if (distance <= 0f || turnCellWidth <= 0f ||
+                direction.x * direction.x + direction.z * direction.z <= .0001f) return;
+            float targetYaw = Mathf.Atan2(direction.x, direction.z) * Mathf.Rad2Deg;
+            float currentYaw = transform.eulerAngles.y;
+            float maxAngle = Mathf.Min(turnDegreesPerCell * distance / turnCellWidth, frameTurnBudget);
+            float yaw = Mathf.MoveTowardsAngle(currentYaw, targetYaw, maxAngle);
+            frameTurnBudget = Mathf.Max(0f, frameTurnBudget - Mathf.Abs(Mathf.DeltaAngle(currentYaw, yaw)));
+            transform.rotation = Quaternion.Euler(0f, yaw, 0f);
         }
 
         public void Cancel()
@@ -370,6 +532,10 @@ namespace ColonyFlow.Gameplay
             Target = null;
             route = null;
             returnRoute = null;
+            canTurnAt = null;
+            turnCellWidth = 0f;
+            frameTurnBudget = 0f;
+            ClearTurn();
             carriedBrick.SetActive(false);
             gameObject.SetActive(false);
         }

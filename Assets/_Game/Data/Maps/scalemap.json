@@ -100,192 +100,134 @@
     1, 1, 1, 1, 1, 1, 1, 1, 1, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 1
   ],
   "queues": [
-    {
-      "boxes": [
-        {
-          "colorId": 1,
-          "antCount": 30,
-          "kind": 0
-        },
-        {
-          "colorId": 1,
-          "antCount": 30,
-          "kind": 0
-        },
-        {
-          "colorId": 1,
-          "antCount": 21,
-          "kind": 0
-        },
-        {
-          "colorId": 4,
-          "antCount": 30,
-          "kind": 0
-        },
-        {
-          "colorId": 4,
-          "antCount": 11,
-          "kind": 0
-        },
-        {
-          "colorId": 2,
-          "antCount": 30,
-          "kind": 0
-        },
-        {
-          "colorId": 2,
-          "antCount": 6,
-          "kind": 0
-        },
-        {
-          "colorId": 3,
-          "antCount": 30,
-          "kind": 0
-        },
-        {
-          "colorId": 3,
-          "antCount": 6,
-          "kind": 0
-        },
-        {
-          "colorId": 4,
-          "antCount": 18,
-          "kind": 0
-        },
-        {
-          "colorId": 5,
-          "antCount": 11,
-          "kind": 0
-        }
-      ]
-    },
-    {
-      "boxes": [
-        {
-          "colorId": 1,
-          "antCount": 30,
-          "kind": 0
-        },
-        {
-          "colorId": 1,
-          "antCount": 30,
-          "kind": 0
-        },
-        {
-          "colorId": 1,
-          "antCount": 22,
-          "kind": 0
-        },
-        {
-          "colorId": 4,
-          "antCount": 30,
-          "kind": 0
-        },
-        {
-          "colorId": 4,
-          "antCount": 11,
-          "kind": 0
-        },
-        {
-          "colorId": 2,
-          "antCount": 30,
-          "kind": 0
-        },
-        {
-          "colorId": 2,
-          "antCount": 6,
-          "kind": 0
-        },
-        {
-          "colorId": 3,
-          "antCount": 30,
-          "kind": 0
-        },
-        {
-          "colorId": 3,
-          "antCount": 7,
-          "kind": 0
-        },
-        {
-          "colorId": 4,
-          "antCount": 18,
-          "kind": 0
-        },
-        {
-          "colorId": 2,
-          "antCount": 1,
-          "kind": 0
-        },
-        {
-          "colorId": 5,
-          "antCount": 11,
-          "kind": 0
-        }
-      ]
-    },
-    {
-      "boxes": [
-        {
-          "colorId": 1,
-          "antCount": 30,
-          "kind": 0
-        },
-        {
-          "colorId": 1,
-          "antCount": 30,
-          "kind": 0
-        },
-        {
-          "colorId": 1,
-          "antCount": 22,
-          "kind": 0
-        },
-        {
-          "colorId": 4,
-          "antCount": 30,
-          "kind": 0
-        },
-        {
-          "colorId": 4,
-          "antCount": 11,
-          "kind": 0
-        },
-        {
-          "colorId": 2,
-          "antCount": 30,
-          "kind": 0
-        },
-        {
-          "colorId": 2,
-          "antCount": 6,
-          "kind": 0
-        },
-        {
-          "colorId": 3,
-          "antCount": 30,
-          "kind": 0
-        },
-        {
-          "colorId": 3,
-          "antCount": 7,
-          "kind": 0
-        },
-        {
-          "colorId": 4,
-          "antCount": 18,
-          "kind": 0
-        },
-        {
-          "colorId": 2,
-          "antCount": 1,
-          "kind": 0
-        },
-        {
-          "colorId": 5,
-          "antCount": 12,
-          "kind": 0
-        }
-      ]
-    }
-  ]
+  {
+    "boxes": [
+      { "colorId": 1, "antCount": 30, "kind": 0 },
+      { "colorId": 1, "antCount": 30, "kind": 0 },
+      { "colorId": 1, "antCount": 30, "kind": 0 },
+
+      { "colorId": 1, "antCount": 30, "kind": 0 },
+      { "colorId": 1, "antCount": 30, "kind": 0 },
+      { "colorId": 1, "antCount": 30, "kind": 0 },
+
+      { "colorId": 1, "antCount": 30, "kind": 0 },
+      { "colorId": 1, "antCount": 30, "kind": 0 },
+      { "colorId": 1, "antCount": 30, "kind": 0 },
+
+      { "colorId": 4, "antCount": 30, "kind": 0 },
+      { "colorId": 4, "antCount": 30, "kind": 0 },
+      { "colorId": 4, "antCount": 30, "kind": 0 },
+
+      { "colorId": 4, "antCount": 30, "kind": 0 },
+      { "colorId": 4, "antCount": 30, "kind": 0 },
+
+      { "colorId": 2, "antCount": 30, "kind": 0 },
+      { "colorId": 2, "antCount": 30, "kind": 0 },
+      { "colorId": 2, "antCount": 30, "kind": 0 },
+      { "colorId": 2, "antCount": 30, "kind": 0 },
+      { "colorId": 2, "antCount": 24, "kind": 0 },
+
+      { "colorId": 3, "antCount": 30, "kind": 0 },
+      { "colorId": 3, "antCount": 30, "kind": 0 },
+      { "colorId": 3, "antCount": 30, "kind": 0 },
+      { "colorId": 3, "antCount": 30, "kind": 0 },
+      { "colorId": 3, "antCount": 24, "kind": 0 },
+
+      { "colorId": 4, "antCount": 30, "kind": 0 },
+      { "colorId": 4, "antCount": 30, "kind": 0 },
+      { "colorId": 4, "antCount": 26, "kind": 0 },
+
+      { "colorId": 5, "antCount": 30, "kind": 0 },
+      { "colorId": 5, "antCount": 1, "kind": 0 }
+    ]
+  },
+  {
+    "boxes": [
+      { "colorId": 1, "antCount": 30, "kind": 0 },
+      { "colorId": 1, "antCount": 30, "kind": 0 },
+      { "colorId": 1, "antCount": 30, "kind": 0 },
+
+      { "colorId": 1, "antCount": 30, "kind": 0 },
+      { "colorId": 1, "antCount": 30, "kind": 0 },
+      { "colorId": 1, "antCount": 30, "kind": 0 },
+
+      { "colorId": 1, "antCount": 30, "kind": 0 },
+      { "colorId": 1, "antCount": 30, "kind": 0 },
+      { "colorId": 1, "antCount": 30, "kind": 0 },
+      { "colorId": 1, "antCount": 3, "kind": 0 },
+
+      { "colorId": 4, "antCount": 30, "kind": 0 },
+      { "colorId": 4, "antCount": 30, "kind": 0 },
+      { "colorId": 4, "antCount": 30, "kind": 0 },
+
+      { "colorId": 4, "antCount": 30, "kind": 0 },
+      { "colorId": 4, "antCount": 30, "kind": 0 },
+
+      { "colorId": 2, "antCount": 30, "kind": 0 },
+      { "colorId": 2, "antCount": 30, "kind": 0 },
+      { "colorId": 2, "antCount": 30, "kind": 0 },
+      { "colorId": 2, "antCount": 30, "kind": 0 },
+      { "colorId": 2, "antCount": 24, "kind": 0 },
+
+      { "colorId": 3, "antCount": 30, "kind": 0 },
+      { "colorId": 3, "antCount": 30, "kind": 0 },
+      { "colorId": 3, "antCount": 30, "kind": 0 },
+      { "colorId": 3, "antCount": 30, "kind": 0 },
+      { "colorId": 3, "antCount": 28, "kind": 0 },
+
+      { "colorId": 4, "antCount": 30, "kind": 0 },
+      { "colorId": 4, "antCount": 30, "kind": 0 },
+      { "colorId": 4, "antCount": 26, "kind": 0 },
+
+      { "colorId": 2, "antCount": 4, "kind": 0 },
+
+      { "colorId": 5, "antCount": 30, "kind": 0 },
+      { "colorId": 5, "antCount": 1, "kind": 0 }
+    ]
+  },
+  {
+    "boxes": [
+      { "colorId": 1, "antCount": 30, "kind": 0 },
+      { "colorId": 1, "antCount": 30, "kind": 0 },
+      { "colorId": 1, "antCount": 30, "kind": 0 },
+
+      { "colorId": 1, "antCount": 30, "kind": 0 },
+      { "colorId": 1, "antCount": 30, "kind": 0 },
+      { "colorId": 1, "antCount": 30, "kind": 0 },
+
+      { "colorId": 1, "antCount": 30, "kind": 0 },
+      { "colorId": 1, "antCount": 30, "kind": 0 },
+      { "colorId": 1, "antCount": 30, "kind": 0 },
+      { "colorId": 1, "antCount": 3, "kind": 0 },
+
+      { "colorId": 4, "antCount": 30, "kind": 0 },
+      { "colorId": 4, "antCount": 30, "kind": 0 },
+      { "colorId": 4, "antCount": 30, "kind": 0 },
+
+      { "colorId": 4, "antCount": 30, "kind": 0 },
+      { "colorId": 4, "antCount": 30, "kind": 0 },
+
+      { "colorId": 2, "antCount": 30, "kind": 0 },
+      { "colorId": 2, "antCount": 30, "kind": 0 },
+      { "colorId": 2, "antCount": 30, "kind": 0 },
+      { "colorId": 2, "antCount": 30, "kind": 0 },
+      { "colorId": 2, "antCount": 24, "kind": 0 },
+
+      { "colorId": 3, "antCount": 30, "kind": 0 },
+      { "colorId": 3, "antCount": 30, "kind": 0 },
+      { "colorId": 3, "antCount": 30, "kind": 0 },
+      { "colorId": 3, "antCount": 30, "kind": 0 },
+      { "colorId": 3, "antCount": 28, "kind": 0 },
+
+      { "colorId": 4, "antCount": 30, "kind": 0 },
+      { "colorId": 4, "antCount": 30, "kind": 0 },
+      { "colorId": 4, "antCount": 26, "kind": 0 },
+
+      { "colorId": 2, "antCount": 4, "kind": 0 },
+
+      { "colorId": 5, "antCount": 30, "kind": 0 },
+      { "colorId": 5, "antCount": 4, "kind": 0 }
+    ]
+  }
+]
 }

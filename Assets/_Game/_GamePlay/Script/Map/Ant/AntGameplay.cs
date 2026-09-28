@@ -322,7 +322,7 @@ namespace ColonyFlow.Gameplay
             pickups.Clear();
             foreach (var ant in active)
             {
-                ant.Advance(animationDelta, animationDelta * antSpeed * speedMultiplier);
+                ant.Advance(animationDelta, animationDelta * antSpeed * speedMultiplier, speedMultiplier);
                 if (ant.State == AntTripState.WaitingPickup) pickups.Add(ant);
             }
             // Collection order is independent of movement callbacks.
@@ -521,6 +521,59 @@ namespace ColonyFlow.Gameplay
             return point;
         }
 
+        private float FittedCellWidth()
+        {
+            var root = mapView.Root;
+            var scale = mapView.Model.CellScale;
+            return Mathf.Min(root.TransformVector(Vector3.right * scale.x).magnitude,
+                root.TransformVector(Vector3.forward * scale.z).magnitude);
+        }
+
+        // Called for each sampled point of a proposed turn. The original route is retained
+        // when its rounded corner would leave the card or cross an occupied cell or hole.
+        private bool CanTurnAt(Vector3 world)
+        {
+            if (mapView == null || mapView.Model == null || mapView.Root == null) return false;
+            var local = mapView.Root.InverseTransformPoint(world);
+            const float edgeTolerance = .0001f;
+            // The planned route deliberately continues below the card toward the hole.
+            // Keep turns inside the left, right and top edges, while allowing that exit.
+            if (local.x < cardBounds.min.x - edgeTolerance || local.x > cardBounds.max.x + edgeTolerance ||
+                local.z > cardBounds.max.z + edgeTolerance)
+                return false;
+
+            if (holeObstacle != null && holeObstacle.enabled)
+            {
+                var hole = HoleBoundsInMapSpace(holeObstacle.bounds);
+                if (local.x >= hole.min.x && local.x <= hole.max.x &&
+                    local.z >= hole.min.z && local.z <= hole.max.z)
+                    return false;
+            }
+
+            var map = mapView.Model;
+            var first = map.GetCell(0, 0);
+            if (first == null) return true;
+            float stepX = map.CellSpacing.x;
+            float stepZ = map.CellSpacing.y;
+            if (stepX <= 0f || stepZ <= 0f) return false;
+            int column = Mathf.RoundToInt((local.x - first.Position.x) / stepX);
+            int row = Mathf.RoundToInt((first.Position.z - local.z) / stepZ);
+            float halfX = map.CellScale.x * .55f;
+            float halfZ = map.CellScale.z * .55f;
+            // Fitted cells occupy one grid step. Check adjacent cells as well because the
+            // small clearance extends their footprint across a nearest-cell boundary.
+            for (int r = row - 1; r <= row + 1; r++)
+            for (int c = column - 1; c <= column + 1; c++)
+            {
+                var cell = map.GetCell(r, c);
+                if (cell == null || cell.IsEmpty) continue;
+                if (Mathf.Abs(local.x - cell.Position.x) <= halfX &&
+                    Mathf.Abs(local.z - cell.Position.z) <= halfZ)
+                    return false;
+            }
+            return true;
+        }
+
         private Vector3 SpawnPosition(int index) => Walking(antSpawnPoints[index].position);
 
         private void Spawn(int index, TargetCandidate candidate)
@@ -536,7 +589,8 @@ namespace ColonyFlow.Gameplay
             ant.Begin(id, box, candidate.Target, SpawnPosition(index), outbound, returning,
                 Walking(perimeter.CellPoint(candidate.Target)),
                 holeJump.position, colorMaterials.Get(candidate.Target.ColorId,
-                    mapView.Model.GetColor(candidate.Target.ColorId)));
+                    mapView.Model.GetColor(candidate.Target.ColorId)),
+                FittedCellWidth(), CanTurnAt);
             active.Add(ant);
             box.Timer = 0;
             if (box.AntCount == 0) ReleaseBox(index);

@@ -553,10 +553,11 @@ MonoBehaviour:
   pickupAnimationDuration: 0.1
   brickLiftDuration: 0.25
   brickLiftSpinDegrees: 100
-  turnSmoothTime: 0.12
   turnRadius: 0.35
   turnCurveSteps: 8
   turnLookAheadDistance: 0.4
+  turnDegreesPerCell: 210
+  turnDegreesPerSecond: 720
   jumpScaleMultiplier: 1.4
   holeAvoidanceOffset: 0.26
   holeTurnLeadDistance: 1.2
