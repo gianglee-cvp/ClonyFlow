@@ -44,7 +44,7 @@ namespace ColonyFlow.Gameplay.Editor
 
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Gameplay Sizing", EditorStyles.boldLabel);
-            Field("mapPadding", "Pixel Art Padding");
+            Field("mapPadding", "Fallback Map Padding");
             Field("cardInsetPixels", "Card Inner Inset (px)");
             Field("boxViewportWidth", "Slot / Box Width");
             Field("queueRowViewportSpacing", "Queue Row Spacing");

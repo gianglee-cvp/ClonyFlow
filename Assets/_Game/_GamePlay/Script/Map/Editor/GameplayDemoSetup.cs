@@ -98,8 +98,10 @@ namespace ColonyFlow.Gameplay.Editor
             float inset = settings.cardInsetPixels * (2 * camera.orthographicSize / 1920);
             CreateCardLayer(root, "Shadow", size, new Vector3(0, -.06f * LayoutUnit, -.35f * LayoutUnit), Hex("#DEAF6E"));
             CreateCardLayer(root, "Frame", size, Vector3.zero, Hex("#EBC68B"));
-            return CreateCardLayer(root, "Surface", size - Vector2.one * inset,
+            var surface = CreateCardLayer(root, "Surface", size - Vector2.one * inset,
                 new Vector3(0, .04f * LayoutUnit, 0), Hex("#F5E9D5"));
+            surface.gameObject.AddComponent<MapSurfacePadding>();
+            return surface;
         }
 
         private static void CreateSlots(Transform parent, Camera camera, Bounds bounds, GameplayLayoutSettings settings,

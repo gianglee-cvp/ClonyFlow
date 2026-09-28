@@ -24,7 +24,8 @@ namespace ColonyFlow.Gameplay
         [Header("Sizes")]
         [Min(1), Tooltip("Minimum permanent slots in the scene. Apply Layout adds missing slots without rebuilding assets.")]
         public int minimumSlotCount = 5;
-        [Min(0f)] public float mapPadding = .12f;
+        [Min(0f), Tooltip("Fallback padding when Surface has no MapSurfacePadding component.")]
+        public float mapPadding = .12f;
         [Min(0f)] public float cardInsetPixels = 22f;
         [Range(.05f, .25f)] public float slotWidth = .115f;
         [Range(.5f, 1f), Tooltip("How much of a slot/queue column each 3D box occupies.")]

@@ -12,7 +12,8 @@ namespace ColonyFlow.Gameplay
         [SerializeField] private Transform mapRoot;
         [SerializeField] private Renderer mapCardSurface;
         [SerializeField] private Material colorMaterialTemplate;
-        [SerializeField, Min(0)] private float mapPadding = .35f;
+        [SerializeField, Min(0), Tooltip("Fallback padding when Surface has no MapSurfacePadding component.")]
+        private float mapPadding = .35f;
         [SerializeField, Min(1)] private float cellHeightMultiplier = 2;
         [SerializeField, Min(0)] private float cellGroundClearance = .2f;
         [SerializeField] private bool loadOnStart = true;
@@ -80,12 +81,15 @@ namespace ColonyFlow.Gameplay
         {
             if (mapCardSurface == null) return true;
             var bounds = MapPerimeter.CardBounds(mapRoot, mapCardSurface);
-            float maxWidth = (bounds.size.x - mapPadding * 2) / model.Columns;
+            var surfacePadding = mapCardSurface.GetComponent<MapSurfacePadding>();
+            float padding = surfacePadding != null ? 0f : mapPadding;
+            if (surfacePadding != null) bounds = surfacePadding.InnerBounds(bounds);
+            float maxWidth = (bounds.size.x - padding * 2) / model.Columns;
             float maxHeight = maxWidth * model.CellScale.y / model.CellScale.x * cellHeightMultiplier;
             float projectionRatio = Mathf.Abs(Vector3.Dot(mapCamera.transform.up, mapRoot.up) /
                 Vector3.Dot(mapCamera.transform.up, mapRoot.forward));
             float topReserve = (cellGroundClearance + maxHeight) * projectionRatio;
-            return model.LayoutToCard(bounds, mapPadding, cellHeightMultiplier, topReserve);
+            return model.LayoutToCard(bounds, padding, cellHeightMultiplier, topReserve);
         }
 
         private void CreateMapRoot()
