@@ -531,7 +531,7 @@ MonoBehaviour:
   queueMoveDuration: 0.26
   blockedPickLift: 0.6
   blockedPickDuration: 0.07
-  disappearBumpDuration: 0.08
+  disappearBumpDuration: 0.05
   disappearBumpHeight: 0.08
   disappearBumpScale: 1.1
   disappearDuration: 0.22

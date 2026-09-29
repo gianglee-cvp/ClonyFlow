@@ -806,17 +806,32 @@ namespace ColonyFlow.Gameplay
         {
             if (!HasCurrentSession) return false;
             var vp = gameplayCamera.ScreenToViewportPoint(screen);
-            if (IsSelectingBlow) return false;
-            if (vp.y <= .045f || vp.y >= .875f) return false;
+            if (IsSelectingBlow)
+                return mapView.TryGetColorAtScreenPoint(screen, gameplayCamera, out int colorId) && BlowColor(colorId);
+            if (!IsSelectingPickup && (vp.y <= .045f || vp.y >= .875f)) return false;
             return PickBoxAt(screen);
         }
 
         private bool PickBoxAt(Vector2 screen)
         {
             Physics.SyncTransforms();
-            if (!Physics.Raycast(gameplayCamera.ScreenPointToRay(screen), out var hit) ||
+            var ray = gameplayCamera.ScreenPointToRay(screen);
+            if (IsSelectingPickup)
+            {
+                BoxActor focusedBox = null;
+                float nearest = float.PositiveInfinity;
+                foreach (var candidate in Physics.RaycastAll(ray))
+                {
+                    if (candidate.distance >= nearest ||
+                        !colliderBoxes.TryGetValue(candidate.collider, out var box) ||
+                        !BoxActor.PickupFocusBoxes.Contains(box)) continue;
+                    focusedBox = box;
+                    nearest = candidate.distance;
+                }
+                return focusedBox != null && PickupBox(focusedBox);
+            }
+            if (!Physics.Raycast(ray, out var hit) ||
                 !colliderBoxes.TryGetValue(hit.collider, out var actor)) return false;
-            if (IsSelectingPickup) return PickupBox(actor);
             if (actor.SlotIndex >= 0 || !CanPickQueue(actor.QueueIndex) || queues[actor.QueueIndex][0] != actor) return false;
             if (Array.FindIndex(slots, item => item == null) < 0)
             {

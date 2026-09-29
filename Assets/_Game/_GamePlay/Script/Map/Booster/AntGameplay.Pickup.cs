@@ -22,13 +22,16 @@ namespace ColonyFlow.Gameplay
             IsSelectingBlow = false;
             blowColors.Clear();
             BoxActor.PickupFocusBoxes.Clear();
+            QueueOutlineFeature.BlowFocusRenderers.Clear();
+            QueueOutlineFeature.BlowFocusGameplay = null;
         }
 
         private bool CanUseBooster() => HasCurrentSession && !Paused && !IsBoardCleared;
 
         public bool PickupBox(BoxActor box)
         {
-            if (!CanPickupBox(box)) return false;
+            if (!IsSelectingPickup || box == null || !BoxActor.PickupFocusBoxes.Contains(box) ||
+                !CanPickupBox(box)) return false;
             int row = queues[box.QueueIndex].IndexOf(box);
             int slot = Array.FindIndex(slots, item => item == null);
             MoveBoxToSlot(box.QueueIndex, row, slot);

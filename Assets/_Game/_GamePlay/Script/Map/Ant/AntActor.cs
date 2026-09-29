@@ -65,6 +65,7 @@ namespace ColonyFlow.Gameplay
         private float turnLength;
         private int turnExitWaypoint;
         private bool returnTurn;
+        private Renderer[] focusRenderers;
 
         private struct TurnSample
         {
@@ -80,6 +81,12 @@ namespace ColonyFlow.Gameplay
         public Material ColorMaterialTemplate => abdomen != null ? abdomen.sharedMaterial : null;
         public float HoleAvoidanceOffset => holeAvoidanceOffset;
         public float HoleTurnLeadDistance => holeTurnLeadDistance;
+
+        public void AddFocusRenderers(List<Renderer> targets)
+        {
+            if (focusRenderers == null) focusRenderers = GetComponentsInChildren<Renderer>(true);
+            targets.AddRange(focusRenderers);
+        }
 
         private void Awake()
         {

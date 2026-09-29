@@ -122,6 +122,34 @@ namespace ColonyFlow.Gameplay
         public Vector3 GetCellVisualPosition(Cell cell) => cellViews.TryGetValue(cell, out var view)
             ? view.transform.position : collectedPositions[cell];
 
+        public void AddBlowFocusRenderers(List<Renderer> targets)
+        {
+            if (mapCardSurface != null)
+            {
+                var card = mapCardSurface.transform.parent;
+                if (card != null) targets.AddRange(card.GetComponentsInChildren<Renderer>());
+                else targets.Add(mapCardSurface);
+            }
+            foreach (var view in cellViews.Values)
+                if (view != null) view.AddRenderers(targets);
+        }
+
+        public bool TryGetColorAtScreenPoint(Vector2 screen, Camera camera, out int colorId)
+        {
+            colorId = 0;
+            float nearest = float.PositiveInfinity;
+            var ray = camera.ScreenPointToRay(screen);
+            foreach (var entry in cellViews)
+            {
+                var renderer = entry.Value.PickRenderer;
+                if (renderer == null || entry.Key.IsEmpty) continue;
+                if (!renderer.bounds.IntersectRay(ray, out float distance) || distance >= nearest) continue;
+                nearest = distance;
+                colorId = entry.Key.ColorId;
+            }
+            return colorId > 0;
+        }
+
         public bool Collect(Cell cell)
         {
             if (Model == null || !Model.TryCollect(cell)) return false;

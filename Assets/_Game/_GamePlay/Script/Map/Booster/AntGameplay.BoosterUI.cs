@@ -20,7 +20,24 @@ namespace ColonyFlow.Gameplay
                 if (!cell.IsEmpty && !blowColors.Contains(cell.ColorId)) blowColors.Add(cell.ColorId);
             blowColors.Sort();
             IsSelectingBlow = blowColors.Count > 0;
+            if (IsSelectingBlow)
+            {
+                mapView.AddBlowFocusRenderers(QueueOutlineFeature.BlowFocusRenderers);
+                QueueOutlineFeature.BlowFocusGameplay = this;
+            }
             return IsSelectingBlow;
+        }
+
+        internal void AddBlowFocusAntRenderers(List<Renderer> targets)
+        {
+            foreach (var ant in active)
+            {
+                if (ant == null || !ant.isActiveAndEnabled) continue;
+                var position = ant.transform.position;
+                if (position.x < cardBounds.min.x || position.x > cardBounds.max.x ||
+                    position.z < cardBounds.min.z || position.z > cardBounds.max.z) continue;
+                ant.AddFocusRenderers(targets);
+            }
         }
 
         public Color GetGameplayColor(int colorId) => mapView != null && mapView.Model != null

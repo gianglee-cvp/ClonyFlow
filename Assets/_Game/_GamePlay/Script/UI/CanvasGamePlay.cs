@@ -29,6 +29,10 @@ namespace ColonyFlow.Gameplay
         private AntGameplay gameplay;
         private bool wired;
         private int displayedLevel;
+        private RectTransform pointerRect;
+        private Vector2 pointerAnchorMin;
+        private Vector2 pointerAnchorMax;
+        private bool pointerAnchorsCaptured;
 
         public override void Setup()
         {
@@ -47,8 +51,25 @@ namespace ColonyFlow.Gameplay
             var obsoleteRestart = transform.Find("Restart Button");
             if (obsoleteRestart != null) obsoleteRestart.gameObject.SetActive(false);
             EnsurePickupDimRoot();
+            if (pauseButton != null)
+            {
+                var pauseGroup = pauseButton.GetComponent<CanvasGroup>();
+                if (pauseGroup == null) pauseGroup = pauseButton.gameObject.AddComponent<CanvasGroup>();
+                pauseGroup.ignoreParentGroups = true;
+            }
             WireButtons();
-            if (pointerSurface != null) pointerSurface.Configure(this);
+            if (pointerSurface != null)
+            {
+                pointerSurface.Configure(this);
+                pointerSurface.transform.SetAsFirstSibling();
+                pointerRect = pointerSurface.transform as RectTransform;
+                if (pointerRect != null && !pointerAnchorsCaptured)
+                {
+                    pointerAnchorMin = pointerRect.anchorMin;
+                    pointerAnchorMax = pointerRect.anchorMax;
+                    pointerAnchorsCaptured = true;
+                }
+            }
             RefreshState();
         }
 
@@ -95,22 +116,19 @@ namespace ColonyFlow.Gameplay
         }
         private void RefreshSelection()
         {
-            bool selecting = gameplay.IsSelectingPickup || gameplay.IsSelectingBlow;
-            if (pickupDimGroup != null) pickupDimGroup.alpha = gameplay.IsSelectingPickup ? .32f : 1f;
-            if (selectionPanel != null) selectionPanel.SetActive(selecting);
-            if (selectionText != null)
-                selectionText.text = gameplay.IsSelectingPickup ? "Choose a queue box" : "Choose a color";
-            displayedColors.Clear();
-            foreach (int color in gameplay.AvailableBlowColors) displayedColors.Add(color);
-            for (int i = 0; i < colorButtons.Count; i++)
+            bool selectingBooster = gameplay.IsSelectingPickup || gameplay.IsSelectingBlow;
+            if (pickupDimGroup != null)
             {
-                bool active = gameplay.IsSelectingBlow && i < displayedColors.Count;
-                colorButtons[i].gameObject.SetActive(active);
-                if (!active) continue;
-                int colorId = displayedColors[i];
-                if (i < colorLabels.Count && colorLabels[i] != null) colorLabels[i].text = colorId.ToString();
-                if (i < colorImages.Count && colorImages[i] != null) colorImages[i].color = gameplay.GetGameplayColor(colorId);
+                pickupDimGroup.alpha = selectingBooster ? .32f : 1f;
+                pickupDimGroup.interactable = !selectingBooster;
+                pickupDimGroup.blocksRaycasts = !selectingBooster;
             }
+            if (pointerRect != null)
+            {
+                pointerRect.anchorMin = selectingBooster ? Vector2.zero : pointerAnchorMin;
+                pointerRect.anchorMax = selectingBooster ? Vector2.one : pointerAnchorMax;
+            }
+            if (selectionPanel != null) selectionPanel.SetActive(false);
         }
 
         private void EnsurePickupDimRoot()

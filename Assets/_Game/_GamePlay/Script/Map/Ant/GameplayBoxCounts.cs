@@ -30,6 +30,9 @@ namespace ColonyFlow.Gameplay
         private void LateUpdate()
         {
             if (countTemplate == null || canvas == null) return;
+            // CanvasGamePlay can reorder its children during Setup; keep world counts behind the booster UI.
+            if (countContainer != null && countContainer.GetSiblingIndex() != 0)
+                countContainer.SetAsFirstSibling();
             expired.Clear();
             foreach (var entry in labels)
                 if (entry.Key == null || !BoxActor.CountBoxes.Contains(entry.Key)) expired.Add(entry.Key);
@@ -61,7 +64,8 @@ namespace ColonyFlow.Gameplay
                 if (!visible) continue;
                 var group = label.GetComponent<CanvasGroup>();
                 if (group == null) group = label.gameObject.AddComponent<CanvasGroup>();
-                group.alpha = !BoxActor.PickupFocusActive || BoxActor.PickupFocusBoxes.Contains(box)
+                group.alpha = QueueOutlineFeature.BlowFocusRenderers.Count == 0 &&
+                    (!BoxActor.PickupFocusActive || BoxActor.PickupFocusBoxes.Contains(box))
                     ? 1f : .32f;
                 RectTransformUtility.ScreenPointToLocalPointInRectangle(parent, point, uiCamera, out var local);
                 label.rectTransform.localPosition = local + screenOffset;

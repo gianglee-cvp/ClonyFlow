@@ -9,6 +9,8 @@ namespace ColonyFlow.Gameplay
 {
     public sealed class QueueOutlineFeature : ScriptableRendererFeature
     {
+        internal static readonly List<Renderer> BlowFocusRenderers = new();
+        internal static AntGameplay BlowFocusGameplay;
         [SerializeField] private Shader outlineShader;
         [SerializeField, Range(0f, 1f)] private float focusDimAlpha = .68f;
         [SerializeField] private Color focusDimColor = Color.black;
@@ -28,14 +30,14 @@ namespace ColonyFlow.Gameplay
         public override void AddRenderPasses(ScriptableRenderer renderer, ref RenderingData renderingData)
         {
             if (material == null || renderingData.cameraData.cameraType != CameraType.Game) return;
-            if (BoxActor.PickupFocusBoxes.Count > 0)
+            if (BoxActor.PickupFocusBoxes.Count > 0 || BlowFocusRenderers.Count > 0)
             {
                 Color dim = focusDimColor;
                 dim.a = focusDimAlpha;
                 material.SetColor("_FocusDimColor", dim);
                 renderer.EnqueuePass(focusPass);
             }
-            if (BoxActor.OutlineBoxes.Count == 0) return;
+            if (BlowFocusRenderers.Count > 0 || BoxActor.OutlineBoxes.Count == 0) return;
             var settings = GameplayOutlineSettings.Active;
             if (settings != null && !settings.ShowOutline) return;
             material.SetFloat("_WidthPixels", settings != null ? settings.WidthPixels : 3f);
@@ -70,6 +72,8 @@ namespace ColonyFlow.Gameplay
                 var camera = frameData.Get<UniversalCameraData>();
                 foreach (var box in BoxActor.PickupFocusBoxes)
                     if (box != null && box.isActiveAndEnabled) box.CollectOutlineRenderers(targets);
+                targets.AddRange(BlowFocusRenderers);
+                BlowFocusGameplay?.AddBlowFocusAntRenderers(targets);
                 targets.RemoveAll(renderer => renderer == null || !renderer.enabled ||
                     !renderer.gameObject.activeInHierarchy ||
                     (camera.camera.cullingMask & (1 << renderer.gameObject.layer)) == 0);

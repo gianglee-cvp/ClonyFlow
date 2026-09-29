@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections.Generic;
 using ColonyFlow.Core.Pooling;
 
 namespace ColonyFlow.Gameplay
@@ -12,6 +13,15 @@ namespace ColonyFlow.Gameplay
         public void OnPoolRecycled() => Cell = null;
 
         public void Configure(Renderer[] targets) => renderers = targets;
+
+        public void AddRenderers(List<Renderer> targets)
+        {
+            if (renderers == null) return;
+            foreach (var renderer in renderers)
+                if (renderer != null) targets.Add(renderer);
+        }
+
+        public Renderer PickRenderer => renderers != null && renderers.Length > 0 ? renderers[0] : null;
 
         public void Initialize(Cell cell, Material colorMaterial)
         {
