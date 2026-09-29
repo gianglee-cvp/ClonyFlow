@@ -48,7 +48,7 @@ namespace ColonyFlow.Gameplay
         {
             Cache();
             if (delta <= 0) return;
-            phase += delta * (pose == ProceduralAntPose.Idle ? 2.2f : pose == ProceduralAntPose.Pickup ? 15f : 9f);
+            phase += delta * (pose == ProceduralAntPose.Idle ? 2.2f : pose == ProceduralAntPose.Pickup ? 15f : 13f);
             ApplyPose();
         }
 
@@ -95,12 +95,13 @@ namespace ColonyFlow.Gameplay
                     offset = Quaternion.Euler(0, (i % 2 == 0 ? -1 : 1) * 28f, 22f);
                 else if (pose == ProceduralAntPose.Pickup)
                     offset = i < 2
-                        ? Quaternion.Euler(0, (i == 0 ? 1f : -1f) * (18f + wave * 10f), 12f)
-                        : Quaternion.Euler(0, alternating * 2f, 0);
+                        ? Quaternion.Euler(alternating * 12f, (i == 0 ? 1f : -1f) * (24f + wave * 16f), 12f)
+                        : Quaternion.Euler(alternating * 8f, alternating * 8f, 0);
                 else if (pose == ProceduralAntPose.Idle)
                     offset = Quaternion.Euler(0, alternating * 2f, 0);
                 else
-                    offset = Quaternion.Euler(0, alternating * (pose == ProceduralAntPose.Carry ? 18f : 28f), 0);
+                    offset = Quaternion.Euler(alternating * 18f,
+                        alternating * (pose == ProceduralAntPose.Carry ? 32f : 44f), 0);
                 legs[i].localRotation = legRotations[i] * offset;
             }
         }
@@ -116,6 +117,21 @@ namespace ColonyFlow.Gameplay
                 visualRoot.Find("Leg Root Middle L"), visualRoot.Find("Leg Root Middle R"),
                 visualRoot.Find("Leg Root Back L"), visualRoot.Find("Leg Root Back R")
             };
+            foreach (var leg in legs)
+            {
+                if (leg == null) continue;
+                var upper = leg.Find("Upper");
+                var lower = leg.Find("Lower");
+                var foot = leg.Find("Foot");
+                if (upper == null || foot == null) continue;
+                Vector3 end = foot.localPosition;
+                upper.localPosition = end * .5f;
+                upper.localRotation = Quaternion.FromToRotation(Vector3.up, end.normalized);
+                var scale = upper.localScale;
+                scale.y = end.magnitude * .5f;
+                upper.localScale = scale;
+                if (lower != null) lower.gameObject.SetActive(false);
+            }
             antennae = new[] { visualRoot.Find("Antenna Root L"), visualRoot.Find("Antenna Root R") };
             mandibles = new[] { visualRoot.Find("Mandible L"), visualRoot.Find("Mandible R") };
             visualPosition = visualRoot.localPosition;

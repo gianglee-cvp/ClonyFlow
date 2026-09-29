@@ -276,10 +276,11 @@ namespace ColonyFlow.Gameplay.Editor
                     leg.transform.localRotation = Quaternion.Euler(0, side * (i - 1) * 25, 0);
                     bodyParts.Add(leg.GetComponent<MeshFilter>());
                 }
-            CreateCombinedAntBody(visual, bodyParts, TintedMaterial(dark, true));
+            var combinedBody = CreateCombinedAntBody(visual, bodyParts, TintedMaterial(dark, true));
             var brick = Primitive(visual, "Carried Brick", PrimitiveType.Cube, new Vector3(0, .55f, .24f),
                 new Vector3(.7f, .24f, .7f), Color.white, false);
             actor.Configure(visual, brick.GetComponent<Renderer>(), abdomen);
+            actor.ConfigureRenderers(new[] { abdomen, combinedBody }, new Renderer[0]);
             actor.ConfigureJumpHeight(1.4f * LayoutUnit);
             brick.SetActive(false);
             var prefab = PrefabUtility.SaveAsPrefabAsset(root, path);
@@ -287,7 +288,7 @@ namespace ColonyFlow.Gameplay.Editor
             return prefab.GetComponent<AntActor>();
         }
 
-        private static void CreateCombinedAntBody(Transform parent, List<MeshFilter> parts, Material bodyMaterial)
+        private static Renderer CreateCombinedAntBody(Transform parent, List<MeshFilter> parts, Material bodyMaterial)
         {
             var combine = new CombineInstance[parts.Count];
             for (int i = 0; i < parts.Count; i++)
@@ -314,7 +315,9 @@ namespace ColonyFlow.Gameplay.Editor
             body.transform.SetParent(parent, false);
             body.AddComponent<MeshFilter>().sharedMesh = mesh;
             ConfigurePrimitiveRenderer(body.AddComponent<MeshRenderer>(), Color.white, true);
-            body.GetComponent<MeshRenderer>().sharedMaterial = bodyMaterial;
+            var renderer = body.GetComponent<MeshRenderer>();
+            renderer.sharedMaterial = bodyMaterial;
+            return renderer;
         }
 
         private static GameObject Primitive(Transform parent, string name, PrimitiveType type, Vector3 position,

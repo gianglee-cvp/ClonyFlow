@@ -1,6 +1,7 @@
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
+using System.Collections.Generic;
 using Object = UnityEngine.Object;
 
 namespace ColonyFlow.Gameplay.Editor
@@ -125,6 +126,17 @@ namespace ColonyFlow.Gameplay.Editor
             procedural.ConfigurePreview(false);
             var actor = root.AddComponent<AntActor>();
             actor.Configure(visual, brickRenderer, abdomen);
+            var bodyRenderers = new List<Renderer>();
+            var detailRenderers = new List<Renderer>();
+            foreach (var renderer in visual.GetComponentsInChildren<Renderer>(true))
+            {
+                if (renderer == brickRenderer) continue;
+                string part = renderer.gameObject.name;
+                if (part.StartsWith("Eye") || part.StartsWith("Pupil") || part == "Smile")
+                    detailRenderers.Add(renderer);
+                else bodyRenderers.Add(renderer);
+            }
+            actor.ConfigureRenderers(bodyRenderers.ToArray(), detailRenderers.ToArray());
             actor.ConfigureJumpHeight(.3f);
             ConfigureContactShadow(root, actor);
             foreach (var renderer in root.GetComponentsInChildren<Renderer>(true))

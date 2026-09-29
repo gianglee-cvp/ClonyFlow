@@ -25,6 +25,8 @@ namespace ColonyFlow.Gameplay
         [SerializeField] private GameObject carriedBrick;
         [SerializeField] private Renderer carriedRenderer;
         [SerializeField] private Renderer abdomen;
+        [SerializeField] private Renderer[] bodyRenderers;
+        [SerializeField] private Renderer[] detailRenderers;
         [SerializeField] private SpriteRenderer contactShadow;
         [SerializeField] private float jumpHeight = 1.4f;
         [SerializeField, Min(.01f)] private float jumpDuration = .55f;
@@ -65,7 +67,6 @@ namespace ColonyFlow.Gameplay
         private float turnLength;
         private int turnExitWaypoint;
         private bool returnTurn;
-        private Renderer[] focusRenderers;
 
         private struct TurnSample
         {
@@ -84,8 +85,10 @@ namespace ColonyFlow.Gameplay
 
         public void AddFocusRenderers(List<Renderer> targets)
         {
-            if (focusRenderers == null) focusRenderers = GetComponentsInChildren<Renderer>(true);
-            targets.AddRange(focusRenderers);
+            if (bodyRenderers != null) targets.AddRange(bodyRenderers);
+            if (detailRenderers != null) targets.AddRange(detailRenderers);
+            if (carriedRenderer != null) targets.Add(carriedRenderer);
+            if (contactShadow != null) targets.Add(contactShadow);
         }
 
         private void Awake()
@@ -151,6 +154,19 @@ namespace ColonyFlow.Gameplay
             CacheCarryTransforms();
         }
 
+        public void ConfigureRenderers(Renderer[] body, Renderer[] details)
+        {
+            bodyRenderers = body;
+            detailRenderers = details;
+        }
+
+        private void ApplyBodyColor(Material colorMaterial)
+        {
+            if (colorMaterial == null || bodyRenderers == null) return;
+            foreach (var renderer in bodyRenderers)
+                if (renderer != null) renderer.sharedMaterial = colorMaterial;
+        }
+
         private void CacheCarryTransforms()
         {
             if (carriedBrick == null) return;
@@ -203,7 +219,7 @@ namespace ColonyFlow.Gameplay
             carriedBrick.SetActive(false);
             if (colorMaterial != null)
             {
-                abdomen.sharedMaterial = colorMaterial;
+                ApplyBodyColor(colorMaterial);
                 carriedRenderer.sharedMaterial = colorMaterial;
             }
             gameObject.SetActive(true);

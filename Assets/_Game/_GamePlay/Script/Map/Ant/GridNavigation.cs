@@ -103,14 +103,16 @@ namespace ColonyFlow.Gameplay
             return false;
         }
 
-        // Keep the clear, straight approach preferred by the card layout.
-        // Otherwise use an empty-cell route with the real cost from this Slot.
+        // Compare every reachable approach by its travel distance from this slot.
         public TargetCandidate EvaluateFrom(Cell target, MapPerimeter perimeter, Vector3 entry, float pickupDistance = 1.1f)
         {
             if (!CanReach(target)) return null;
             var straight = StraightApproach(target, perimeter, entry, pickupDistance);
-            if (straight != null) return straight;
-            return FindAccess(target, SearchFrom(perimeter, entry));
+            var throughEmptyCells = FindAccess(target, SearchFrom(perimeter, entry));
+            if (throughEmptyCells == null) return straight;
+            if (straight == null || throughEmptyCells.TravelDistance < straight.TravelDistance - Epsilon)
+                return throughEmptyCells;
+            return straight;
         }
 
         private TargetCandidate StraightApproach(Cell target, MapPerimeter perimeter, Vector3 entry, float pickupDistance)

@@ -83,10 +83,8 @@ namespace ColonyFlow.Gameplay.Editor
             {
                 var root = Child(parent, $"Leg Root {name} {(side < 0 ? "L" : "R")}");
                 root.localPosition = new Vector3(side * .13f, .40f, rootZ);
-                Vector3 knee = new Vector3(side * .22f, -.13f, .02f);
                 Vector3 foot = new Vector3(side * .34f, -.34f, footZ - rootZ);
-                Capsule(root, "Upper", Vector3.zero, knee, .04f, body);
-                Capsule(root, "Lower", knee, foot, .032f, body);
+                Capsule(root, "Upper", Vector3.zero, foot, .04f, body);
                 Sphere(root, "Foot", foot, new Vector3(.08f, .045f, .10f), dark);
             }
         }
