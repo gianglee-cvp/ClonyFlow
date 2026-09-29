@@ -326,6 +326,7 @@ namespace ColonyFlow.Gameplay
 
         private void BeginPickupAnimation()
         {
+            FaceDirectionImmediately(pickupLookAtPosition - transform.position);
             State = AntTripState.PickingUp;
             pickupAnimationTime = 0;
             proceduralAnimation?.SetPickingUp();

@@ -10,6 +10,7 @@ namespace ColonyFlow.Gameplay
         public bool DirectBorderAccess => AccessCell == null;
         internal List<Cell> InteriorRoute;
         public Vector3 EntryPoint { get; internal set; }
+        public float InteriorDistance { get; internal set; }
         public float TravelDistance { get; internal set; }
     }
 
@@ -27,6 +28,7 @@ namespace ColonyFlow.Gameplay
         private sealed class Search
         {
             public readonly float[] Distance;
+            public readonly float[] PerimeterDistance;
             public readonly int[] Previous;
             public readonly int[] Steps;
             public readonly Vector3[] Edge;
@@ -34,6 +36,7 @@ namespace ColonyFlow.Gameplay
             public Search(int count)
             {
                 Distance = new float[count];
+                PerimeterDistance = new float[count];
                 Previous = new int[count];
                 Steps = new int[count];
                 Edge = new Vector3[count];
@@ -41,6 +44,7 @@ namespace ColonyFlow.Gameplay
                 for (int i = 0; i < count; i++)
                 {
                     Distance[i] = float.PositiveInfinity;
+                    PerimeterDistance[i] = float.PositiveInfinity;
                     Previous[i] = -1;
                     Steps[i] = int.MaxValue;
                 }
@@ -103,26 +107,28 @@ namespace ColonyFlow.Gameplay
             return false;
         }
 
-        // Compare every reachable approach by its travel distance from this slot.
+        // Minimize the trip from the card edge to the brick, then the perimeter trip.
         public TargetCandidate EvaluateFrom(Cell target, MapPerimeter perimeter, Vector3 entry, float pickupDistance = 1.1f)
         {
             if (!CanReach(target)) return null;
             var straight = StraightApproach(target, perimeter, entry, pickupDistance);
-            var throughEmptyCells = FindAccess(target, SearchFrom(perimeter, entry));
-            if (throughEmptyCells == null) return straight;
-            if (straight == null || throughEmptyCells.TravelDistance < straight.TravelDistance - Epsilon)
-                return throughEmptyCells;
-            return straight;
+            var throughEmptyCells = FindAccess(target, SearchFrom(perimeter, entry), perimeter, entry, pickupDistance);
+            return Better(throughEmptyCells, straight) ? throughEmptyCells : straight;
         }
+
+        private static bool Better(TargetCandidate candidate, TargetCandidate current) =>
+            candidate != null && (current == null ||
+                candidate.InteriorDistance < current.InteriorDistance - Epsilon ||
+                Mathf.Abs(candidate.InteriorDistance - current.InteriorDistance) <= Epsilon &&
+                candidate.TravelDistance < current.TravelDistance - Epsilon);
 
         private TargetCandidate StraightApproach(Cell target, MapPerimeter perimeter, Vector3 entry, float pickupDistance)
         {
             var best = DirectApproach(target, perimeter, entry, pickupDistance);
             for (int d = 0; d < 4; d++)
             {
-                var candidate = StraightRay(target, d, perimeter, entry);
-                if (candidate != null && (best == null || candidate.TravelDistance < best.TravelDistance - Epsilon))
-                    best = candidate;
+                var candidate = StraightRay(target, d, perimeter, entry, pickupDistance);
+                if (Better(candidate, best)) best = candidate;
             }
             return best;
         }
@@ -134,15 +140,16 @@ namespace ColonyFlow.Gameplay
             foreach (var point in perimeter.BorderPoints(target, map.Columns))
             {
                 // Match the actual endpoint even when the pickup offset lies outside the card.
-                float cost = perimeter.Distance(entry, point) +
-                    Mathf.Abs(Vector3.Distance(point, perimeter.CellPoint(target)) - pickupDistance);
-                if (best == null || cost < best.TravelDistance - Epsilon)
-                    best = CreateCandidate(target, null, point, cost, new List<Cell>());
+                float inside = Mathf.Abs(Vector3.Distance(point, perimeter.CellPoint(target)) - pickupDistance);
+                var candidate = CreateCandidate(target, null, point, inside,
+                    perimeter.Distance(entry, point), new List<Cell>());
+                if (Better(candidate, best)) best = candidate;
             }
             return best;
         }
 
-        private TargetCandidate StraightRay(Cell target, int direction, MapPerimeter perimeter, Vector3 entry)
+        private TargetCandidate StraightRay(Cell target, int direction, MapPerimeter perimeter,
+            Vector3 entry, float pickupDistance)
         {
             var access = Neighbor(target, direction);
             if (access == null || !access.IsEmpty) return null;
@@ -162,11 +169,14 @@ namespace ColonyFlow.Gameplay
             {
                 var delta = point - perimeter.CellPoint(cell);
                 if (Vector3.Dot(delta.normalized, outward) < .999f) continue;
-                float cost = perimeter.Distance(entry, point) + Vector3.Distance(point, perimeter.CellPoint(access));
-                if (best != null && cost >= best.TravelDistance - Epsilon) continue;
+                float inside = Vector3.Distance(point, perimeter.CellPoint(cell)) +
+                    Vector3.Distance(perimeter.CellPoint(cell), perimeter.CellPoint(access)) +
+                    Mathf.Max(0f, Vector3.Distance(perimeter.CellPoint(access), perimeter.CellPoint(target)) - pickupDistance);
                 var interior = new List<Cell>(route);
                 interior.Reverse();
-                best = CreateCandidate(target, access, point, cost, interior);
+                var candidate = CreateCandidate(target, access, point, inside,
+                    perimeter.Distance(entry, point), interior);
+                if (Better(candidate, best)) best = candidate;
             }
             return best;
         }
@@ -202,9 +212,13 @@ namespace ColonyFlow.Gameplay
                 int id = CellId(cell);
                 foreach (var point in perimeter.BorderPoints(cell, map.Columns))
                 {
-                    float cost = perimeter.Distance(entry, point) + Vector3.Distance(point, perimeter.CellPoint(cell));
-                    if (cost >= search.Distance[id]) continue;
-                    search.Distance[id] = cost;
+                    float distance = Vector3.Distance(point, perimeter.CellPoint(cell));
+                    float perimeterDistance = perimeter.Distance(entry, point);
+                    if (distance > search.Distance[id] + Epsilon ||
+                        Mathf.Abs(distance - search.Distance[id]) <= Epsilon &&
+                        perimeterDistance >= search.PerimeterDistance[id] - Epsilon) continue;
+                    search.Distance[id] = distance;
+                    search.PerimeterDistance[id] = perimeterDistance;
                     search.Edge[id] = point;
                     search.Steps[id] = 1;
                 }
@@ -219,7 +233,10 @@ namespace ColonyFlow.Gameplay
             {
                 if (search.Visited[i] || float.IsPositiveInfinity(search.Distance[i])) continue;
                 if (search.Distance[i] < smallest - Epsilon ||
-                    Mathf.Abs(search.Distance[i] - smallest) <= Epsilon && (best < 0 || search.Steps[i] < search.Steps[best]))
+                    Mathf.Abs(search.Distance[i] - smallest) <= Epsilon &&
+                    (best < 0 || search.PerimeterDistance[i] < search.PerimeterDistance[best] - Epsilon ||
+                     Mathf.Abs(search.PerimeterDistance[i] - search.PerimeterDistance[best]) <= Epsilon &&
+                     search.Steps[i] < search.Steps[best]))
                 {
                     smallest = search.Distance[i];
                     best = i;
@@ -239,15 +256,20 @@ namespace ColonyFlow.Gameplay
                 float cost = search.Distance[current] + Vector3.Distance(perimeter.CellPoint(cell), perimeter.CellPoint(next));
                 int steps = search.Steps[current] + 1;
                 if (cost > search.Distance[id] + Epsilon ||
-                    Mathf.Abs(cost - search.Distance[id]) <= Epsilon && steps >= search.Steps[id]) continue;
+                    Mathf.Abs(cost - search.Distance[id]) <= Epsilon &&
+                    (search.PerimeterDistance[current] > search.PerimeterDistance[id] + Epsilon ||
+                     Mathf.Abs(search.PerimeterDistance[current] - search.PerimeterDistance[id]) <= Epsilon &&
+                     steps >= search.Steps[id])) continue;
                 search.Distance[id] = cost;
+                search.PerimeterDistance[id] = search.PerimeterDistance[current];
                 search.Previous[id] = current;
                 search.Edge[id] = search.Edge[current];
                 search.Steps[id] = steps;
             }
         }
 
-        private TargetCandidate FindAccess(Cell target, Search search)
+        private TargetCandidate FindAccess(Cell target, Search search, MapPerimeter perimeter,
+            Vector3 entry, float pickupDistance)
         {
             TargetCandidate best = null;
             for (int d = 0; d < 4; d++)
@@ -256,9 +278,11 @@ namespace ColonyFlow.Gameplay
                 if (access == null || !access.IsEmpty) continue;
                 int id = CellId(access);
                 if (float.IsPositiveInfinity(search.Distance[id])) continue;
-                if (best != null && (search.Distance[id] > best.TravelDistance + Epsilon ||
-                    Mathf.Abs(search.Distance[id] - best.TravelDistance) <= Epsilon && search.Steps[id] >= best.InteriorRoute.Count)) continue;
-                best = CreateCandidate(target, access, search.Edge[id], search.Distance[id], Trace(search, id));
+                float inside = search.Distance[id] +
+                    Mathf.Max(0f, Vector3.Distance(perimeter.CellPoint(access), perimeter.CellPoint(target)) - pickupDistance);
+                var candidate = CreateCandidate(target, access, search.Edge[id], inside,
+                    perimeter.Distance(entry, search.Edge[id]), Trace(search, id));
+                if (Better(candidate, best)) best = candidate;
             }
             return best;
         }
@@ -272,8 +296,10 @@ namespace ColonyFlow.Gameplay
             return route;
         }
 
-        private static TargetCandidate CreateCandidate(Cell target, Cell access, Vector3 entry, float distance, List<Cell> route) =>
-            new TargetCandidate { Target = target, AccessCell = access, EntryPoint = entry, TravelDistance = distance, InteriorRoute = route };
+        private static TargetCandidate CreateCandidate(Cell target, Cell access, Vector3 entry,
+            float inside, float perimeterDistance, List<Cell> route) =>
+            new TargetCandidate { Target = target, AccessCell = access, EntryPoint = entry,
+                InteriorDistance = inside, TravelDistance = inside + perimeterDistance, InteriorRoute = route };
 
         public List<Cell> BuildInteriorRoute(TargetCandidate candidate) => new List<Cell>(candidate.InteriorRoute);
     }
